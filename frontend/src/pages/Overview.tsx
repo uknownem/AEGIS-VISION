@@ -15,10 +15,13 @@ export default function Overview() {
       try {
         const res = await fetch(`${API_BASE_URL}/health`);
         if (res.ok) {
-          setBackendAlive(true);
-        } else {
-          setBackendAlive(false);
+          const data = await res.json().catch(() => null);
+          if (data && data.status === 'ok') {
+            setBackendAlive(true);
+            return;
+          }
         }
+        setBackendAlive(false);
       } catch {
         setBackendAlive(false);
       }
