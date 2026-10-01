@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { tacticalSiren } from '../utils/siren';
 import { visionDetector } from '../utils/visionDetector';
+import { alertSync } from '../utils/alertSync';
 import { API_BASE_URL, WS_BASE_URL } from '../config';
 
 type StreamSource = 'backend' | 'webcam' | 'simulated';
@@ -67,24 +68,65 @@ export default function CameraMonitoring() {
   const lastThreatTimeRef = useRef<number>(0);
   const sirenHoldTimerRef = useRef<any>(null);
 
-  // Non-human target detection calculation
+  // Non-human and threat target calculation for UI HUD
   const nonHumanDetections = detections.filter(d => d.class_id !== 0 && (d.is_non_human !== false));
-  const hasRawNonHuman = nonHumanDetections.length > 0;
   const hasHumanThreat = detections.some(d => d.class_id === 0);
   const latestHuman = detections.find(d => d.class_id === 0);
-  const latestNonHuman = nonHumanDetections[0];
+  const latestNonHuman = nonHumanDetections[0] || detections[0];
 
-  // Object Detection Persistence Tracker: keeps siren ON continuously until object completely exits
+  // Object & Surroundings Threat Detection:
+  // Detects unusual objects (mobiles, electronics, spoons/tools) OR un-uniformed / camouflage humans
+  const unusualThreats = detections.filter(d => d.is_threat === true || (d.is_non_human && d.class_name && !d.class_name.includes('person')));
+  const hasUnusualThreat = unusualThreats.length > 0;
+  const latestThreat = unusualThreats[0];
+
+  // Analysis & Siren Delay Controller:
+  // Analyzes surroundings first for 2.5s before activating siren alarm!
+  const [analyzingSurroundings, setAnalyzingSurroundings] = useState(false);
+  const threatStartTimeRef = useRef<number>(0);
+  const savedWebcamIncursionIdsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
-    if (hasRawNonHuman) {
-      lastThreatTimeRef.current = Date.now();
-      setActiveSirenAlert(true);
-      if (sirenHoldTimerRef.current) {
-        clearTimeout(sirenHoldTimerRef.current);
-        sirenHoldTimerRef.current = null;
+    if (hasUnusualThreat) {
+      if (threatStartTimeRef.current === 0) {
+        threatStartTimeRef.current = Date.now();
+        setAnalyzingSurroundings(true);
+      } else {
+        const elapsed = Date.now() - threatStartTimeRef.current;
+        // Analyze surroundings for 2.5 seconds first before siren activation!
+        if (elapsed >= 2500) {
+          setAnalyzingSurroundings(false);
+          setActiveSirenAlert(true);
+
+          // ONLY SAVE INCURSION FOR LOCAL WEBCAM STREAM!
+          if (streamSource === 'webcam' && latestThreat) {
+            const incursionKey = `${latestThreat.class_name}_${Math.floor(Date.now() / 10000)}`;
+            if (!savedWebcamIncursionIdsRef.current.has(incursionKey)) {
+              savedWebcamIncursionIdsRef.current.add(incursionKey);
+              
+              alertSync.broadcastNewAlert({
+                alert_type: 'NON_HUMAN_INTRUSION',
+                incursion_category: latestThreat.threat_type || 'WEBCAM SURROUNDINGS ANOMALY',
+                object_category: latestThreat.is_non_human ? 'ELECTRONIC_GADGET' : 'UNAUTHORIZED_HUMAN',
+                target_class: latestThreat.class_name || 'Unusual Object / Phone / Spoon / Disguise',
+                threat_level: 'HIGH',
+                confidence: latestThreat.confidence || 0.95,
+                camera_id: 'LOCAL-WEBCAM',
+                sector: 'Local Command Desk (Webcam Feed)',
+                siren_triggered: 1,
+                status: 'ACTIVE',
+                distance_meters: latestThreat.distance_meters || 0.8,
+                notes: `Surroundings analyzed on local webcam feed. Threat detected: ${latestThreat.class_name}`
+              });
+            }
+          }
+        }
       }
+      lastThreatTimeRef.current = Date.now();
     } else {
-      // If object was detected, hold the siren active for 1.5s of sustained absence before shutting off
+      threatStartTimeRef.current = 0;
+      setAnalyzingSurroundings(false);
+
       if (activeSirenAlert && !sirenHoldTimerRef.current) {
         sirenHoldTimerRef.current = setTimeout(() => {
           const elapsed = Date.now() - lastThreatTimeRef.current;
@@ -95,11 +137,11 @@ export default function CameraMonitoring() {
         }, 1500);
       }
     }
-  }, [hasRawNonHuman, activeSirenAlert]);
+  }, [hasUnusualThreat, streamSource, activeSirenAlert, latestThreat]);
 
-  // Master Continuous Siren Trigger: continuously wails while non-human object is present
+  // Master Continuous Siren Trigger: continuously wails ONLY after surroundings analysis confirms unusual threat
   useEffect(() => {
-    if (activeSirenAlert && sirenEnabled && !alertEscalated) {
+    if (activeSirenAlert && sirenEnabled && !alertEscalated && !analyzingSurroundings) {
       tacticalSiren.startSiren();
     } else {
       tacticalSiren.stop();
@@ -108,7 +150,7 @@ export default function CameraMonitoring() {
     return () => {
       tacticalSiren.stop();
     };
-  }, [activeSirenAlert, sirenEnabled, alertEscalated]);
+  }, [activeSirenAlert, sirenEnabled, alertEscalated, analyzingSurroundings]);
 
   const hasNonHumanThreat = activeSirenAlert;
 
@@ -271,7 +313,9 @@ export default function CameraMonitoring() {
                 confidence: d.confidence,
                 bbox: [d.bbox[0], d.bbox[1], d.bbox[0] + d.bbox[2], d.bbox[1] + d.bbox[3]],
                 distance_data: { distance_meters: d.distance_meters, relative_vector: [d.bbox[0], d.bbox[1]] },
-                is_non_human: d.is_non_human
+                is_non_human: d.is_non_human,
+                is_threat: d.is_threat,
+                threat_type: d.threat_type
               })));
             } else {
               setDetections([]);
