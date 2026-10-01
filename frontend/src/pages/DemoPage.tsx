@@ -4,7 +4,7 @@ import {
   Volume2, VolumeX, Eye, Radio, Play, Sparkles, ArrowLeft, Siren
 } from 'lucide-react';
 import { tacticalSiren } from '../utils/siren';
-import { API_BASE_URL } from '../config';
+import { alertSync, type IncursionType, type ObjectCategory, type ThreatLevel } from '../utils/alertSync';
 
 type VisionMode = 'normal' | 'thermal' | 'nvg' | 'flir';
 type DefconLevel = 'DEFCON 5' | 'DEFCON 4' | 'DEFCON 3' | 'DEFCON 2' | 'DEFCON 1';
@@ -320,33 +320,37 @@ export default function DemoPage() {
     }
 
     if (newTgt.isThreat) {
-      try {
-        const timeStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
-        const alertObj = {
-          id: Date.now() % 100000,
-          alert_type: type === 'NON_HUMAN_OBJECT' ? 'NON_HUMAN_INTRUSION' : (type === 'DRONE' ? 'UAV_PERIMETER_BREACH' : 'ARMOR_MOVEMENT'),
-          target_class: newTgt.name,
-          confidence: newTgt.confidence,
-          camera_id: 'CAM-01',
-          sector: 'LAC Northern Sector [DEMO SIM]',
-          siren_triggered: 1,
-          status: 'ACTIVE',
-          distance_meters: newTgt.distance,
-          notes: `Tactical simulation threat spawned (${newTgt.name}) // SIREN ENGAGED`,
-          timestamp: timeStr
-        };
+      let incType: IncursionType = 'NON_HUMAN_INTRUSION';
+      let objCat: ObjectCategory = 'METALLIC_TOOL';
+      let thLevel: ThreatLevel = 'HIGH';
 
-        const existingAlerts = JSON.parse(localStorage.getItem('aegis_alerts') || localStorage.getItem('aegis_alerts_cache') || '[]');
-        const updated = [alertObj, ...existingAlerts];
-        localStorage.setItem('aegis_alerts', JSON.stringify(updated));
-        localStorage.setItem('aegis_alerts_cache', JSON.stringify(updated));
+      if (type === 'NON_HUMAN_OBJECT') {
+        incType = 'NON_HUMAN_INTRUSION';
+        objCat = 'METALLIC_TOOL';
+        thLevel = 'HIGH';
+      } else if (type === 'DRONE') {
+        incType = 'UAV_PERIMETER_BREACH';
+        objCat = 'UAV_DRONE';
+        thLevel = 'CRITICAL';
+      } else if (type === 'VEHICLE') {
+        incType = 'ARMOR_CONVOY_MOVEMENT';
+        objCat = 'ARMORED_VEHICLE';
+        thLevel = 'CRITICAL';
+      }
 
-        fetch(`${API_BASE_URL}/api/alerts`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(alertObj)
-        }).catch(() => {});
-      } catch {}
+      alertSync.broadcastNewAlert({
+        alert_type: incType,
+        object_category: objCat,
+        target_class: newTgt.name,
+        threat_level: thLevel,
+        confidence: newTgt.confidence,
+        camera_id: 'CAM-01',
+        sector: 'LAC Northern Sector [DEMO SIMULATION]',
+        siren_triggered: 1,
+        status: 'ACTIVE',
+        distance_meters: newTgt.distance,
+        notes: `Tactical simulation incursion detected (${newTgt.name}) // SIREN ENGAGED`
+      });
     }
 
     setTargets(prev => [...prev, newTgt]);

@@ -6,9 +6,11 @@ import {
   CheckCircle2, Save, Sparkles
 } from 'lucide-react';
 import { tacticalSiren } from '../utils/siren';
+import { alertSync } from '../utils/alertSync';
 
 export default function DashboardLayout() {
   const [timeStr, setTimeStr] = useState(() => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+  const [activeAlertCount, setActiveAlertCount] = useState(0);
   
   // Modals state
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -60,7 +62,16 @@ export default function DashboardLayout() {
     const timer = setInterval(() => {
       setTimeStr(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
     }, 1000);
-    return () => clearInterval(timer);
+
+    const unsubscribe = alertSync.subscribe((alerts) => {
+      const active = alerts.filter(a => a.status === 'ACTIVE').length;
+      setActiveAlertCount(active);
+    });
+
+    return () => {
+      clearInterval(timer);
+      unsubscribe();
+    };
   }, []);
 
   const handleSaveSettings = () => {
@@ -108,9 +119,28 @@ export default function DashboardLayout() {
         <NavLink to="/dashboard" end title="Overview"><LayoutDashboard size={18} /></NavLink>
         <NavLink to="/dashboard/cameras" title="Cameras"><Video size={18} /></NavLink>
         <NavLink to="/dashboard/zones" title="Zones"><Map size={18} /></NavLink>
-        <NavLink to="/dashboard/alerts" title="Alerts" style={{ position: 'relative' }}>
+        <NavLink to="/dashboard/alerts" title={`Alerts (${activeAlertCount} active)`} style={{ position: 'relative' }}>
           <Bell size={18} />
-          <span style={{ position: 'absolute', top: 5, right: 5, width: 6, height: 6, backgroundColor: 'var(--color-alert)', borderRadius: '50%' }}></span>
+          {activeAlertCount > 0 && (
+            <span style={{ 
+              position: 'absolute', 
+              top: 2, 
+              right: 2, 
+              minWidth: 14, 
+              height: 14, 
+              backgroundColor: 'var(--color-alert)', 
+              borderRadius: '50%',
+              color: '#fff',
+              fontSize: 9,
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 2px'
+            }}>
+              {activeAlertCount}
+            </span>
+          )}
         </NavLink>
         <NavLink to="/dashboard/personnel" title="Personnel"><Users size={18} /></NavLink>
         <NavLink to="/dashboard/analytics" title="Analytics"><BarChart3 size={18} /></NavLink>
