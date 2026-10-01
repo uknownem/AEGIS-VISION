@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { mockPersonnel } from '../mockData';
 import { User, ShieldCheck, ShieldAlert, Search, Clock, Plus, CheckCircle2, RefreshCw, Terminal, UserCheck, Activity } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 interface SoldierLog {
   id: number;
@@ -51,7 +52,7 @@ export default function Personnel() {
     setLoading(true);
     try {
       // 1. Fetch Logins
-      const resLogs = await fetch('http://localhost:8000/api/auth/soldier-logs');
+      const resLogs = await fetch(`${API_BASE_URL}/api/auth/soldier-logs`);
       if (resLogs.ok) {
         const json = await resLogs.json();
         if (json.data && Array.isArray(json.data)) {
@@ -60,7 +61,7 @@ export default function Personnel() {
       }
 
       // 2. Fetch Activities
-      const resActs = await fetch('http://localhost:8000/api/personnel/activity');
+      const resActs = await fetch(`${API_BASE_URL}/api/personnel/activity`);
       if (resActs.ok) {
         const jsonActs = await resActs.json();
         if (jsonActs.data && Array.isArray(jsonActs.data)) {
@@ -100,7 +101,7 @@ export default function Personnel() {
     setSuccessMsg('');
 
     try {
-      const res = await fetch('http://localhost:8000/api/auth/soldier-login', {
+      const res = await fetch(`${API_BASE_URL}/api/auth/soldier-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newLogin)

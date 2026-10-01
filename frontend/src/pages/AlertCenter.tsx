@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Clock, MapPin, Eye, CheckCircle, Siren, RefreshCw, Filter, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { tacticalSiren } from '../utils/siren';
+import { API_BASE_URL } from '../config';
 
 interface SecurityAlert {
   id: number;
@@ -28,8 +29,8 @@ export default function AlertCenter() {
     setLoading(true);
     try {
       const url = filterStatus === 'ALL' 
-        ? 'http://localhost:8000/api/alerts'
-        : `http://localhost:8000/api/alerts?status=${filterStatus}`;
+        ? `${API_BASE_URL}/api/alerts`
+        : `${API_BASE_URL}/api/alerts?status=${filterStatus}`;
       const res = await fetch(url);
       if (res.ok) {
         const json = await res.json();
@@ -71,7 +72,7 @@ export default function AlertCenter() {
   // Update status in SQLite Database
   const handleAcknowledgeOrResolve = async (id: number, nextStatus: string) => {
     try {
-      await fetch(`http://localhost:8000/api/alerts/${id}`, {
+      await fetch(`${API_BASE_URL}/api/alerts/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: nextStatus, notes: `Operator acknowledged at ${new Date().toLocaleTimeString()}` })

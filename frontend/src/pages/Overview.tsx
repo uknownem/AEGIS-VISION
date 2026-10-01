@@ -3,6 +3,7 @@ import { mockCameras } from '../mockData';
 import { Video, Thermometer, ShieldAlert, AlertTriangle, Activity } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import CameraThumbnail from '../components/CameraThumbnail';
+import { API_BASE_URL } from '../config';
 
 export default function Overview() {
   const [backendAlive, setBackendAlive] = useState(false);
@@ -12,7 +13,7 @@ export default function Overview() {
     // Check if backend is alive
     const checkBackend = async () => {
       try {
-        const res = await fetch('http://localhost:8000/health');
+        const res = await fetch(`${API_BASE_URL}/health`);
         if (res.ok) {
           setBackendAlive(true);
         } else {
@@ -108,7 +109,7 @@ export default function Overview() {
                 <div style={{ height: 210, backgroundColor: '#060907', position: 'relative', overflow: 'hidden' }}>
                   {idx === 0 && backendAlive ? (
                     <img 
-                      src="http://localhost:8000/video_feed" 
+                      src={`${API_BASE_URL}/video_feed`} 
                       alt="Live feed preview"
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}

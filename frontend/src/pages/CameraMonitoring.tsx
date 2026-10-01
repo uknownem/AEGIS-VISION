@@ -6,6 +6,7 @@ import {
   Eye, RefreshCw, VolumeX, Crosshair, ZoomIn, ZoomOut, Siren
 } from 'lucide-react';
 import { tacticalSiren } from '../utils/siren';
+import { API_BASE_URL, WS_BASE_URL } from '../config';
 
 type StreamSource = 'backend' | 'webcam' | 'simulated';
 type VisionMode = 'normal' | 'thermal' | 'nvg' | 'flir';
@@ -92,7 +93,7 @@ export default function CameraMonitoring() {
 
     const connectWs = () => {
       try {
-        ws = new WebSocket('ws://localhost:8000/ws/stream');
+        ws = new WebSocket(WS_BASE_URL);
         
         ws.onopen = () => {
           setWsStatus('CONNECTED');
@@ -442,7 +443,7 @@ export default function CameraMonitoring() {
           {streamSource === 'backend' && (
             !backendImageError ? (
               <img 
-                src="http://localhost:8000/video_feed" 
+                src={`${API_BASE_URL}/video_feed`} 
                 alt="AI Live Video Stream"
                 onError={() => setBackendImageError(true)}
                 style={{ 
