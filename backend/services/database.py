@@ -13,7 +13,7 @@ def get_connection():
     return conn
 
 def init_db():
-    """Initializes database tables and seeds initial realistic tactical defense records."""
+    """Initializes database tables and ensures all soldier duty logins and siren alerts are stored."""
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -52,36 +52,45 @@ def init_db():
     );
     """)
 
-    # Seed initial soldier logins if table is empty
+    # Complete Indian Army soldier duty login database records
+    all_soldiers = [
+        ("IA-948201", "Subedar Vikram Singh", "Subedar", "14 Corps - High Altitude Recon", "LOGIN", "TERMINAL-LAC-NORTH", "10.14.2.10", "AUTHORIZED", "2026-10-01 14:15:22", time.time() - 3600),
+        ("IA-773194", "Major Rajesh Sharma", "Major", "9 Para Special Forces", "LOGIN", "TERMINAL-HQ-ALPHA", "10.14.1.04", "AUTHORIZED", "2026-10-01 14:20:05", time.time() - 2700),
+        ("IA-661038", "Havildar Gurpreet Singh", "Havildar", "Sikh Light Infantry", "LOGIN", "TERMINAL-CHECKPOINT-4", "10.14.3.18", "AUTHORIZED", "2026-10-01 14:28:40", time.time() - 1800),
+        ("IA-829104", "Captain Ananya Roy", "Captain", "Signals Intelligence Wing", "STATION_CHECK_IN", "TERMINAL-DRONE-OPS", "10.14.1.88", "AUTHORIZED", "2026-10-01 14:32:10", time.time() - 1200),
+        ("IA-550192", "Lieutenant Karan Verma", "Lieutenant", "Armored Corps - 1st Cavalry", "LOGIN", "TERMINAL-ARMOR-DEPOT", "10.14.4.12", "AUTHORIZED", "2026-10-01 14:35:18", time.time() - 900),
+        ("IA-339102", "Sepoy Manoj Kumar", "Sepoy", "Kumaon Regiment", "LOGIN", "TERMINAL-NORTH-WATCH", "10.14.2.55", "AUTHORIZED", "2026-10-01 14:38:00", time.time() - 750),
+        ("IA-110294", "Colonel Sanjeev Malhotra", "Colonel", "Northern Command HQ", "LOGIN", "TERMINAL-COMMAND-CENTRAL", "10.14.1.01", "AUTHORIZED", "2026-10-01 14:40:20", time.time() - 600),
+        ("IA-449182", "Naib Subedar Deepankar Das", "Naib Subedar", "Assam Rifles (Border Recon)", "STATION_CHECK_IN", "TERMINAL-OUTPOST-CHARLIE", "10.14.5.21", "AUTHORIZED", "2026-10-01 14:42:50", time.time() - 400),
+        ("IA-992144", "Havildar Suresh Nair", "Havildar", "Madras Regiment", "LOGIN", "TERMINAL-RADAR-MAST", "10.14.3.09", "AUTHORIZED", "2026-10-01 14:44:10", time.time() - 250)
+    ]
+
     cursor.execute("SELECT COUNT(*) FROM soldier_logs")
-    if cursor.fetchone()[0] == 0:
-        initial_logins = [
-            ("IA-948201", "Subedar Vikram Singh", "Subedar", "14 Corps - High Altitude Recon", "LOGIN", "TERMINAL-LAC-NORTH", "10.14.2.10", "AUTHORIZED", "2026-10-01 14:15:22", time.time() - 3600),
-            ("IA-773194", "Major Rajesh Sharma", "Major", "9 Para Special Forces", "LOGIN", "TERMINAL-HQ-ALPHA", "10.14.1.04", "AUTHORIZED", "2026-10-01 14:20:05", time.time() - 2700),
-            ("IA-661038", "Havildar Gurpreet Singh", "Havildar", "Sikh Light Infantry", "LOGIN", "TERMINAL-CHECKPOINT-4", "10.14.3.18", "AUTHORIZED", "2026-10-01 14:28:40", time.time() - 1800),
-            ("IA-829104", "Captain Ananya Roy", "Captain", "Signals Intelligence Wing", "STATION_CHECK_IN", "TERMINAL-DRONE-OPS", "10.14.1.88", "AUTHORIZED", "2026-10-01 14:32:10", time.time() - 600)
-        ]
+    if cursor.fetchone()[0] < len(all_soldiers):
+        cursor.execute("DELETE FROM soldier_logs")
         cursor.executemany("""
         INSERT INTO soldier_logs (service_number, name, rank, unit, action, terminal_id, ip_address, status, timestamp, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, initial_logins)
+        """, all_soldiers)
 
-    # Seed initial alerts if table is empty
+    # Seed security alerts & siren warnings
+    all_siren_alerts = [
+        ("NON_HUMAN_INTRUSION", "Main Battle Tank / BMP", 0.965, "CAM-07", "LAC Northern Sector", 1, "ACTIVE", 48.2, "Armored vehicle detected at snow transit corridor // TACTICAL SIREN ACTIVATED", "2026-10-01 14:24:12", time.time() - 1200),
+        ("NON_HUMAN_INTRUSION", "charger / spoon / object", 0.930, "CAM-01", "Perimeter Fence Alpha", 1, "ACKNOWLEDGED", 1.4, "Non-human foreign object detected in base perimeter // SIREN LOGGED", "2026-10-01 14:10:00", time.time() - 2400),
+        ("NON_HUMAN_INTRUSION", "Unidentified Aerial Drone (UAV)", 0.942, "CAM-04", "Eastern Ridge Pass", 1, "ACTIVE", 125.0, "Low-altitude unauthorized drone breach // SIREN WAILING", "2026-10-01 14:30:15", time.time() - 800),
+        ("CAMOUFLAGE_BREACH", "Thermal Heat Signature", 0.890, "CAM-02", "Main Gate Corridor", 1, "RESOLVED", 18.5, "Camouflage target movement intercepted // Operator cleared", "2026-10-01 13:55:00", time.time() - 3200)
+    ]
+
     cursor.execute("SELECT COUNT(*) FROM security_alerts")
-    if cursor.fetchone()[0] == 0:
-        initial_alerts = [
-            ("NON_HUMAN_INTRUSION", "Main Battle Tank / BMP", 0.965, "CAM-07", "LAC Northern Sector", 1, "ACTIVE", 48.2, "Armored vehicle detected at snow transit corridor", "2026-10-01 14:24:12", time.time() - 1200),
-            ("NON_HUMAN_INTRUSION", "charger / spoon / object", 0.930, "CAM-01", "Perimeter Fence Alpha", 1, "ACKNOWLEDGED", 1.4, "Non-human object detected within restricted base radius", "2026-10-01 14:10:00", time.time() - 2400)
-        ]
+    if cursor.fetchone()[0] < len(all_siren_alerts):
+        cursor.execute("DELETE FROM security_alerts")
         cursor.executemany("""
         INSERT INTO security_alerts (alert_type, target_class, confidence, camera_id, sector, siren_triggered, status, distance_meters, notes, timestamp, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, initial_alerts)
+        """, all_siren_alerts)
 
     conn.commit()
     conn.close()
-
-# --- Soldier Authentication / Login API Helpers ---
 
 def record_soldier_login(
     service_number: str,
@@ -134,8 +143,6 @@ def get_soldier_logs(limit: int = 50) -> List[Dict[str, Any]]:
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
-
-# --- Security Alerts & Siren Trigger API Helpers ---
 
 def record_security_alert(
     alert_type: str,
