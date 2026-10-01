@@ -16,13 +16,8 @@ export default function CameraMonitoring() {
   const navigate = useNavigate();
   const camera = mockCameras.find(c => c.id === id) || mockCameras[0];
   
-  // Default to simulated mode on cloud deployments (Vercel) when no backend server URL is configured
-  const [streamSource, setStreamSource] = useState<StreamSource>(() => {
-    if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !import.meta.env.VITE_API_URL) {
-      return 'simulated';
-    }
-    return 'backend';
-  });
+  // Default to High-Definition Tactical Reconnaissance simulation feed
+  const [streamSource, setStreamSource] = useState<StreamSource>('simulated');
 
   const [visionMode, setVisionMode] = useState<VisionMode>('normal');
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -387,20 +382,20 @@ export default function CameraMonitoring() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontFamily: "'Share Tech Mono', monospace" }}>SOURCE:</span>
           <button 
-            onClick={() => { setStreamSource('backend'); setBackendImageError(false); }}
+            onClick={() => setStreamSource('simulated')}
             style={{
               padding: '6px 12px',
               fontSize: 11,
               fontFamily: "'Share Tech Mono', monospace",
               borderRadius: 3,
-              backgroundColor: streamSource === 'backend' ? 'var(--color-accent)' : 'var(--color-surface)',
-              color: streamSource === 'backend' ? '#000' : 'var(--color-text)',
+              backgroundColor: streamSource === 'simulated' ? 'var(--color-accent)' : 'var(--color-surface)',
+              color: streamSource === 'simulated' ? '#000' : 'var(--color-text)',
               border: '1px solid var(--color-border)',
               cursor: 'pointer',
-              fontWeight: streamSource === 'backend' ? 'bold' : 'normal'
+              fontWeight: streamSource === 'simulated' ? 'bold' : 'normal'
             }}
           >
-            AI BACKEND (PORT 8000)
+            TACTICAL RECON (LIVE)
           </button>
 
           <button 
@@ -421,20 +416,20 @@ export default function CameraMonitoring() {
           </button>
 
           <button 
-            onClick={() => setStreamSource('simulated')}
+            onClick={() => { setStreamSource('backend'); setBackendImageError(false); }}
             style={{
               padding: '6px 12px',
               fontSize: 11,
               fontFamily: "'Share Tech Mono', monospace",
               borderRadius: 3,
-              backgroundColor: streamSource === 'simulated' ? 'var(--color-accent)' : 'var(--color-surface)',
-              color: streamSource === 'simulated' ? '#000' : 'var(--color-text)',
+              backgroundColor: streamSource === 'backend' ? 'var(--color-accent)' : 'var(--color-surface)',
+              color: streamSource === 'backend' ? '#000' : 'var(--color-text)',
               border: '1px solid var(--color-border)',
               cursor: 'pointer',
-              fontWeight: streamSource === 'simulated' ? 'bold' : 'normal'
+              fontWeight: streamSource === 'backend' ? 'bold' : 'normal'
             }}
           >
-            TACTICAL SIM
+            AI BACKEND (PORT 8000)
           </button>
         </div>
       </div>
