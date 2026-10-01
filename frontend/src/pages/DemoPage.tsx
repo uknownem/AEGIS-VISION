@@ -4,6 +4,7 @@ import {
   Volume2, VolumeX, Eye, Radio, Play, Sparkles, ArrowLeft, Siren
 } from 'lucide-react';
 import { tacticalSiren } from '../utils/siren';
+import { API_BASE_URL } from '../config';
 
 type VisionMode = 'normal' | 'thermal' | 'nvg' | 'flir';
 type DefconLevel = 'DEFCON 5' | 'DEFCON 4' | 'DEFCON 3' | 'DEFCON 2' | 'DEFCON 1';
@@ -316,6 +317,36 @@ export default function DemoPage() {
         isThreat: true
       };
       setEventLogs(prev => [`[${now}] 🚨 VEHICULAR PERIMETER INTRUSION AT PERIMETER GATE`, ...prev.slice(0, 7)]);
+    }
+
+    if (newTgt.isThreat) {
+      try {
+        const timeStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        const alertObj = {
+          id: Date.now() % 100000,
+          alert_type: type === 'NON_HUMAN_OBJECT' ? 'NON_HUMAN_INTRUSION' : (type === 'DRONE' ? 'UAV_PERIMETER_BREACH' : 'ARMOR_MOVEMENT'),
+          target_class: newTgt.name,
+          confidence: newTgt.confidence,
+          camera_id: 'CAM-01',
+          sector: 'LAC Northern Sector [DEMO SIM]',
+          siren_triggered: 1,
+          status: 'ACTIVE',
+          distance_meters: newTgt.distance,
+          notes: `Tactical simulation threat spawned (${newTgt.name}) // SIREN ENGAGED`,
+          timestamp: timeStr
+        };
+
+        const existingAlerts = JSON.parse(localStorage.getItem('aegis_alerts') || localStorage.getItem('aegis_alerts_cache') || '[]');
+        const updated = [alertObj, ...existingAlerts];
+        localStorage.setItem('aegis_alerts', JSON.stringify(updated));
+        localStorage.setItem('aegis_alerts_cache', JSON.stringify(updated));
+
+        fetch(`${API_BASE_URL}/api/alerts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(alertObj)
+        }).catch(() => {});
+      } catch {}
     }
 
     setTargets(prev => [...prev, newTgt]);

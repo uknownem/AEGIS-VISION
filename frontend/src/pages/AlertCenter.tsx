@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { 
   Clock, MapPin, Eye, CheckCircle, Siren, RefreshCw, 
-  Filter, ShieldAlert, PlusCircle, CheckCheck
+  Filter, ShieldAlert, PlusCircle, CheckCheck, Trash2, Database, AlertTriangle, X
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { tacticalSiren } from '../utils/siren';
 import { API_BASE_URL } from '../config';
 
-interface SecurityAlert {
+export interface SecurityAlert {
   id: number;
   alert_type: string;
   target_class: string;
@@ -21,7 +21,7 @@ interface SecurityAlert {
   timestamp: string;
 }
 
-const INITIAL_ALERTS: SecurityAlert[] = [
+export const SAMPLE_SECURITY_ALERTS: SecurityAlert[] = [
   { 
     id: 1, 
     alert_type: 'NON_HUMAN_INTRUSION', 
@@ -77,56 +77,108 @@ const INITIAL_ALERTS: SecurityAlert[] = [
 ];
 
 export default function AlertCenter() {
-  const [alerts, setAlerts] = useState<SecurityAlert[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('aegis_alerts_cache');
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-        } catch {}
-      }
-    }
-    return INITIAL_ALERTS;
-  });
-
+  const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
+  const [hasSampleAlerts, setHasSampleAlerts] = useState(false);
   const [loading, setLoading] = useState(false);
   const [testingSiren, setTestingSiren] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [toastMsg, setToastMsg] = useState<string>('');
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
-  // Persist alerts to localStorage
-  useEffect(() => {
-    if (alerts.length > 0) {
-      localStorage.setItem('aegis_alerts_cache', JSON.stringify(alerts));
-    }
-  }, [alerts]);
+  // Form State for creating a new alert
+  const [newAlertForm, setNewAlertForm] = useState({
+    alert_type: 'NON_HUMAN_INTRUSION',
+    target_class: 'Armored Tank / Electronic Intruder',
+    confidence: 0.95,
+    camera_id: 'CAM-01',
+    sector: 'LAC Northern Sector',
+    siren_triggered: true,
+    distance_meters: 2.5,
+    notes: 'Manual security dispatch logged by operator'
+  });
+  const [creatingAlert, setCreatingAlert] = useState(false);
 
-  // Fetch persistent alerts from FastAPI SQLite Database if available
-  const fetchAlerts = async () => {
+  // Read saved alerts from localStorage / Backend
+  const refreshAlerts = async () => {
     setLoading(true);
+    let storedAlerts: SecurityAlert[] = [];
+    const sampleFlag = localStorage.getItem('aegis_sample_alerts_loaded') === 'true' || localStorage.getItem('aegis_sample_dataset_loaded') === 'true';
+    setHasSampleAlerts(sampleFlag);
+
+    try {
+      const saved = localStorage.getItem('aegis_alerts_cache') || localStorage.getItem('aegis_alerts');
+      if (saved) {
+        storedAlerts = JSON.parse(saved);
+      }
+    } catch {}
+
+    // If sample flag is enabled and stored alerts are empty, populate samples
+    if (sampleFlag && storedAlerts.length === 0) {
+      storedAlerts = [...SAMPLE_SECURITY_ALERTS];
+      localStorage.setItem('aegis_alerts', JSON.stringify(storedAlerts));
+      localStorage.setItem('aegis_alerts_cache', JSON.stringify(storedAlerts));
+    }
+
+    // Attempt backend sync
     try {
       const res = await fetch(`${API_BASE_URL}/api/alerts`);
       if (res.ok) {
         const json = await res.json().catch(() => null);
         if (json && json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-          setAlerts(json.data);
+          // Merge with local without losing un-synced entries
+          const map = new Map<number, SecurityAlert>();
+          json.data.forEach((a: SecurityAlert) => map.set(a.id, a));
+          storedAlerts.forEach((a: SecurityAlert) => {
+            if (!map.has(a.id)) map.set(a.id, a);
+          });
+          storedAlerts = Array.from(map.values()).sort((a, b) => b.id - a.id);
         }
       }
-    } catch {
-      // Keep existing memory state on standalone
-    } finally {
-      setLoading(false);
-    }
+    } catch {}
+
+    setAlerts(storedAlerts);
+    setLoading(false);
   };
 
   useEffect(() => {
-    fetchAlerts();
+    refreshAlerts();
+    const interval = setInterval(refreshAlerts, 5000);
+    return () => clearInterval(interval);
   }, []);
+
+  // Helper to persist alerts locally & state
+  const persistAlertsList = (updated: SecurityAlert[]) => {
+    setAlerts(updated);
+    localStorage.setItem('aegis_alerts', JSON.stringify(updated));
+    localStorage.setItem('aegis_alerts_cache', JSON.stringify(updated));
+  };
 
   const showNotification = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(''), 2500);
+  };
+
+  // Load sample dataset
+  const handleLoadSampleAlerts = () => {
+    localStorage.setItem('aegis_sample_alerts_loaded', 'true');
+    setHasSampleAlerts(true);
+    
+    // Merge sample alerts with any existing alerts
+    const map = new Map<number, SecurityAlert>();
+    SAMPLE_SECURITY_ALERTS.forEach(a => map.set(a.id, a));
+    alerts.forEach(a => map.set(a.id, a));
+    const merged = Array.from(map.values()).sort((a, b) => b.id - a.id);
+    
+    persistAlertsList(merged);
+    showNotification('Sample defense intrusion alerts loaded successfully!');
+  };
+
+  // Clear to clean slate
+  const handleClearAlerts = () => {
+    localStorage.removeItem('aegis_sample_alerts_loaded');
+    setHasSampleAlerts(false);
+    persistAlertsList([]);
+    showNotification('All alerts cleared. Defense alert center is now clean.');
   };
 
   // Test Tactical Audio Siren
@@ -139,14 +191,15 @@ export default function AlertCenter() {
     }, 1850);
   };
 
-  // 1. Acknowledge Alert (Instant UI Feedback + Background DB Sync)
+  // 1. Acknowledge Alert (Instant UI Feedback + Persistent Sync)
   const handleAcknowledge = async (id: number) => {
     const timeStr = new Date().toLocaleTimeString();
-    setAlerts(prev => prev.map(a => 
+    const updated = alerts.map(a => 
       a.id === id 
         ? { ...a, status: 'ACKNOWLEDGED', notes: `Operator acknowledged at ${timeStr}` } 
         : a
-    ));
+    );
+    persistAlertsList(updated);
     showNotification(`Alert #${id} status changed to ACKNOWLEDGED`);
 
     try {
@@ -158,14 +211,15 @@ export default function AlertCenter() {
     } catch {}
   };
 
-  // 2. Resolve Alert (Instant UI Feedback + Background DB Sync)
+  // 2. Resolve Alert (Instant UI Feedback + Persistent Sync)
   const handleResolve = async (id: number) => {
     const timeStr = new Date().toLocaleTimeString();
-    setAlerts(prev => prev.map(a => 
+    const updated = alerts.map(a => 
       a.id === id 
         ? { ...a, status: 'RESOLVED', notes: `Resolved & Cleared by Operator at ${timeStr}` } 
         : a
-    ));
+    );
+    persistAlertsList(updated);
     showNotification(`Alert #${id} marked as RESOLVED`);
 
     try {
@@ -177,38 +231,67 @@ export default function AlertCenter() {
     } catch {}
   };
 
-  // 3. Resolve All Active Alerts
+  // 3. Delete / Dismiss Single Alert
+  const handleDeleteAlert = (id: number) => {
+    const updated = alerts.filter(a => a.id !== id);
+    persistAlertsList(updated);
+    showNotification(`Alert #${id} dismissed and deleted from registry.`);
+  };
+
+  // 4. Resolve All Active Alerts
   const handleResolveAll = () => {
     const timeStr = new Date().toLocaleTimeString();
-    setAlerts(prev => prev.map(a => ({
+    const updated = alerts.map(a => ({
       ...a,
       status: 'RESOLVED',
       notes: `Batch resolved by Operator at ${timeStr}`
-    })));
+    }));
+    persistAlertsList(updated);
     showNotification('All active and acknowledged alerts marked as RESOLVED');
   };
 
-  // 4. Simulate New Incursion Threat in Real-Time
-  const handleSimulateNewAlert = () => {
-    const newId = Date.now() % 10000;
-    const timeStr = new Date().toLocaleTimeString();
+  // 5. Submit New Custom Incursion Alert
+  const handleCreateAlertSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAlertForm.target_class || !newAlertForm.sector) return;
+    setCreatingAlert(true);
+
+    const newId = Date.now() % 100000;
+    const timeStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
     const newAlert: SecurityAlert = {
       id: newId,
-      alert_type: 'NON_HUMAN_INTRUSION',
-      target_class: 'charger / spoon / electronic intruder',
-      confidence: 0.958,
-      camera_id: 'CAM-01',
-      sector: 'Himalayan LAC Patrol Checkpoint',
-      siren_triggered: 1,
+      alert_type: newAlertForm.alert_type,
+      target_class: newAlertForm.target_class,
+      confidence: Number(newAlertForm.confidence),
+      camera_id: newAlertForm.camera_id,
+      sector: newAlertForm.sector,
+      siren_triggered: newAlertForm.siren_triggered ? 1 : 0,
       status: 'ACTIVE',
-      distance_meters: 1.4,
-      notes: 'New non-human object detected in sector // AUTOMATED SIREN WAILING',
-      timestamp: `2026-10-01 ${timeStr}`
+      distance_meters: Number(newAlertForm.distance_meters),
+      notes: newAlertForm.notes,
+      timestamp: timeStr
     };
 
-    setAlerts(prev => [newAlert, ...prev]);
-    tacticalSiren.playTestSiren(1200);
-    showNotification(`🚨 New Intrusion Alert #${newId} Simulated! Siren Active.`);
+    const updated = [newAlert, ...alerts];
+    persistAlertsList(updated);
+
+    if (newAlertForm.siren_triggered) {
+      tacticalSiren.playTestSiren(1500);
+    }
+
+    // Try backend sync
+    try {
+      await fetch(`${API_BASE_URL}/api/alerts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAlert)
+      });
+    } catch {}
+
+    showNotification(`🚨 Security Alert #${newId} saved permanently!`);
+    setCreatingAlert(false);
+    setShowCreateModal(false);
   };
 
   // Filter alerts by status
@@ -255,10 +338,77 @@ export default function AlertCenter() {
         </div>
 
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Simulate New Threat Button */}
+          {/* Refresh / Live Sync Button */}
           <button 
-            onClick={handleSimulateNewAlert}
-            title="Simulate a new non-human intruder alert in real-time"
+            onClick={refreshAlerts}
+            disabled={loading}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 6, 
+              padding: '8px 12px', 
+              backgroundColor: 'rgba(59, 130, 246, 0.15)', 
+              border: '1px solid var(--color-accent)', 
+              color: 'var(--color-accent)', 
+              borderRadius: 4, 
+              cursor: 'pointer', 
+              fontSize: 12, 
+              fontFamily: "'Share Tech Mono', monospace",
+              fontWeight: 'bold'
+            }}
+            title="Sync latest alerts from local storage and defense server"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> {loading ? 'SYNCING...' : 'LIVE SYNC'}
+          </button>
+
+          {/* Load Sample Dataset Button */}
+          {!hasSampleAlerts ? (
+            <button
+              onClick={handleLoadSampleAlerts}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 12px',
+                backgroundColor: 'rgba(234, 179, 8, 0.15)',
+                border: '1px solid var(--color-warning)',
+                color: 'var(--color-warning)',
+                borderRadius: 4,
+                fontSize: 11,
+                fontFamily: "'Share Tech Mono', monospace",
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+              title="Populate sample incursion dataset"
+            >
+              <Database size={14} /> LOAD SAMPLE DATASET
+            </button>
+          ) : (
+            <button
+              onClick={handleClearAlerts}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 12px',
+                backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid var(--color-alert)',
+                color: 'var(--color-alert)',
+                borderRadius: 4,
+                fontSize: 11,
+                fontFamily: "'Share Tech Mono', monospace",
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+              title="Clear all alerts and return to clean slate"
+            >
+              <Trash2 size={14} /> CLEAR ALERTS
+            </button>
+          )}
+
+          {/* Record New Incursion Alert Button */}
+          <button 
+            onClick={() => setShowCreateModal(true)}
             style={{ 
               display: 'flex', 
               alignItems: 'center', 
@@ -274,7 +424,7 @@ export default function AlertCenter() {
               fontWeight: 'bold' 
             }}
           >
-            <PlusCircle size={14} /> + SIMULATE INTRUSION ALERT
+            <PlusCircle size={14} /> + RECORD INCURSION ALERT
           </button>
 
           {/* Test Tactical Siren Button */}
@@ -297,14 +447,6 @@ export default function AlertCenter() {
           >
             <Siren size={16} className={testingSiren ? "animate-spin" : ""} />
             {testingSiren ? 'SIREN WAILING...' : 'TEST SIREN'}
-          </button>
-
-          {/* Refresh from DB Button */}
-          <button 
-            onClick={fetchAlerts}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontFamily: "'Share Tech Mono', monospace" }}
-          >
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} /> REFRESH
           </button>
         </div>
       </div>
@@ -361,7 +503,7 @@ export default function AlertCenter() {
             ● {activeAlertsCount} ACTIVE
           </span>
           <span style={{ color: 'var(--color-text-muted)' }}>
-            TOTAL: {alerts.length}
+            TOTAL SAVED: {alerts.length}
           </span>
         </div>
       </div>
@@ -369,11 +511,37 @@ export default function AlertCenter() {
       {/* Alert List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {displayedAlerts.length === 0 ? (
-          <div className="card" style={{ textAlign: 'center', padding: 40 }}>
-            <ShieldAlert size={36} color="var(--color-text-muted)" style={{ marginBottom: 10 }} />
-            <p style={{ color: 'var(--color-text-muted)', fontFamily: "'Share Tech Mono', monospace" }}>
-              No security alerts found under status filter: <strong>{filterStatus}</strong>.
+          <div className="card" style={{ textAlign: 'center', padding: '48px 24px' }}>
+            <ShieldAlert size={42} color="var(--color-text-muted)" style={{ marginBottom: 12 }} />
+            <h4 style={{ color: 'var(--color-accent)', marginBottom: 6 }}>CLEAN SLATE // NO SAVED ALERTS</h4>
+            <p style={{ color: 'var(--color-text-muted)', fontFamily: "'Share Tech Mono', monospace", fontSize: 13, maxWidth: 500, margin: '0 auto 18px auto' }}>
+              Your account currently has zero active alerts. You can manually record an incursion, trigger detections from the live cameras/demo page, or load the defense sample dataset.
             </p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button
+                onClick={handleLoadSampleAlerts}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: 'rgba(234, 179, 8, 0.15)',
+                  border: '1px solid var(--color-warning)',
+                  color: 'var(--color-warning)',
+                  borderRadius: 4,
+                  fontSize: 12,
+                  fontFamily: "'Share Tech Mono', monospace",
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                📥 LOAD SAMPLE DATASET
+              </button>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="btn-primary"
+                style={{ padding: '8px 16px', fontSize: 12, fontWeight: 'bold' }}
+              >
+                + RECORD NEW ALERT
+              </button>
+            </div>
           </div>
         ) : (
           displayedAlerts.map(alert => (
@@ -415,11 +583,11 @@ export default function AlertCenter() {
                     }}>
                       {alert.status}
                     </span>
-                    {alert.siren_triggered && (
+                    {alert.siren_triggered ? (
                       <span className="badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.2)', color: 'var(--color-alert)', border: '1px solid var(--color-alert)', fontSize: 10 }}>
                         🚨 SIREN LOGGED
                       </span>
-                    )}
+                    ) : null}
                   </div>
 
                   <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--color-text-muted)', fontFamily: "'Share Tech Mono', monospace", flexWrap: 'wrap' }}>
@@ -491,11 +659,175 @@ export default function AlertCenter() {
                     <CheckCircle size={15} /> RESOLVED
                   </span>
                 )}
+
+                {/* Dismiss / Delete Single Alert */}
+                <button
+                  onClick={() => handleDeleteAlert(alert.id)}
+                  title="Delete this alert record"
+                  style={{
+                    backgroundColor: 'transparent',
+                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                    color: 'var(--color-alert)',
+                    padding: '8px',
+                    borderRadius: 4,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <Trash2 size={14} />
+                </button>
               </div>
             </div>
           ))
         )}
       </div>
+
+      {/* Record Incursion Modal */}
+      {showCreateModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.85)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+          padding: 20
+        }}>
+          <div className="card" style={{
+            maxWidth: 540,
+            width: '100%',
+            backgroundColor: '#0a0f0a',
+            border: '1px solid var(--color-alert)',
+            boxShadow: '0 0 35px rgba(239, 68, 68, 0.3)',
+            padding: 24
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, borderBottom: '1px solid var(--color-border)', paddingBottom: 10 }}>
+              <h3 style={{ color: 'var(--color-alert)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertTriangle size={18} /> RECORD DEFENSE INCURSION ALERT
+              </h3>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateAlertSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>INCURSION / THREAT TYPE</label>
+                <select
+                  value={newAlertForm.alert_type}
+                  onChange={(e) => setNewAlertForm({ ...newAlertForm, alert_type: e.target.value })}
+                  style={{ width: '100%', padding: '8px 10px', backgroundColor: 'rgba(0,0,0,0.6)', border: '1px solid var(--color-border)', color: 'var(--color-text)', borderRadius: 4 }}
+                >
+                  <option value="NON_HUMAN_INTRUSION">NON-HUMAN INTRUSION (Spoon / Weapon / Device)</option>
+                  <option value="UAV_PERIMETER_BREACH">UAV DRONE AIRSPACE BREACH</option>
+                  <option value="ARMOR_MOVEMENT">HOSTILE ARMOR / VEHICLE ADVANCE</option>
+                  <option value="CAMOUFLAGE_BREACH">CAMOUFLAGE / THERMAL SIGNATURE</option>
+                  <option value="TRIPWIRE_BREACH">LASER TRIPWIRE PERIMETER BREACH</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>TARGET OBJECT / CLASS</label>
+                  <input
+                    type="text"
+                    required
+                    value={newAlertForm.target_class}
+                    onChange={(e) => setNewAlertForm({ ...newAlertForm, target_class: e.target.value })}
+                    placeholder="e.g. Armored BMP / Electronic Object"
+                    style={{ width: '100%', padding: '8px 10px', backgroundColor: 'rgba(0,0,0,0.6)', border: '1px solid var(--color-border)', color: 'var(--color-text)', borderRadius: 4 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>OPTICAL SENSOR UNIT</label>
+                  <select
+                    value={newAlertForm.camera_id}
+                    onChange={(e) => setNewAlertForm({ ...newAlertForm, camera_id: e.target.value })}
+                    style={{ width: '100%', padding: '8px 10px', backgroundColor: 'rgba(0,0,0,0.6)', border: '1px solid var(--color-border)', color: 'var(--color-text)', borderRadius: 4 }}
+                  >
+                    <option value="CAM-01">CAM-01 (LAC Northern Sector)</option>
+                    <option value="CAM-02">CAM-02 (Main Gate Perimeter)</option>
+                    <option value="CAM-03">CAM-03 (FLIR Thermal Sector)</option>
+                    <option value="CAM-04">CAM-04 (Eastern Ridge UAV Recon)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>SECTOR / LOCATION</label>
+                  <input
+                    type="text"
+                    required
+                    value={newAlertForm.sector}
+                    onChange={(e) => setNewAlertForm({ ...newAlertForm, sector: e.target.value })}
+                    placeholder="e.g. LAC Northern Sector"
+                    style={{ width: '100%', padding: '8px 10px', backgroundColor: 'rgba(0,0,0,0.6)', border: '1px solid var(--color-border)', color: 'var(--color-text)', borderRadius: 4 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>ESTIMATED DISTANCE (M)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={newAlertForm.distance_meters}
+                    onChange={(e) => setNewAlertForm({ ...newAlertForm, distance_meters: parseFloat(e.target.value) || 0 })}
+                    style={{ width: '100%', padding: '8px 10px', backgroundColor: 'rgba(0,0,0,0.6)', border: '1px solid var(--color-border)', color: 'var(--color-text)', borderRadius: 4 }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginBottom: 4 }}>OPERATIONAL NOTES / INTEL</label>
+                <textarea
+                  rows={2}
+                  value={newAlertForm.notes}
+                  onChange={(e) => setNewAlertForm({ ...newAlertForm, notes: e.target.value })}
+                  style={{ width: '100%', padding: '8px 10px', backgroundColor: 'rgba(0,0,0,0.6)', border: '1px solid var(--color-border)', color: 'var(--color-text)', borderRadius: 4, fontFamily: "'Share Tech Mono', monospace", resize: 'vertical' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0' }}>
+                <input
+                  type="checkbox"
+                  id="siren_chk"
+                  checked={newAlertForm.siren_triggered}
+                  onChange={(e) => setNewAlertForm({ ...newAlertForm, siren_triggered: e.target.checked })}
+                  style={{ cursor: 'pointer' }}
+                />
+                <label htmlFor="siren_chk" style={{ fontSize: 12, color: 'var(--color-alert)', cursor: 'pointer', fontWeight: 'bold' }}>
+                  🚨 Trigger Tactical Siren Dispatch on Save
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="btn-secondary"
+                  style={{ padding: '8px 16px', fontSize: 12 }}
+                >
+                  CANCEL
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingAlert}
+                  className="btn-primary"
+                  style={{ padding: '8px 18px', fontSize: 12, fontWeight: 'bold', backgroundColor: 'var(--color-alert)', borderColor: 'var(--color-alert)', color: '#fff' }}
+                >
+                  {creatingAlert ? 'SAVING ALERT...' : 'RECORD & SAVE ALERT'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

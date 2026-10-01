@@ -388,6 +388,7 @@ export default function Login() {
       localStorage.setItem('aegis_accounts', JSON.stringify(updatedAccounts));
       // Ensure new account starts with clean slate
       localStorage.removeItem('aegis_sample_dataset_loaded');
+      localStorage.removeItem('aegis_sample_alerts_loaded');
 
       const currentTimestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
