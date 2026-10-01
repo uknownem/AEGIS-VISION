@@ -284,6 +284,8 @@ export default function Login() {
       }
 
       // Credentials are 100% VALID!
+      const currentTimestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
       const sessionData = {
         serviceId: account.serviceId,
         operatorName: account.operatorName,
@@ -296,7 +298,7 @@ export default function Login() {
         webcamEnabled,
         ipCameraUrl,
         backendStreamEnabled,
-        loginTimestamp: new Date().toISOString()
+        loginTimestamp: currentTimestamp
       };
 
       // Persist active session
@@ -305,6 +307,38 @@ export default function Login() {
       if (rememberCredentials) {
         localStorage.setItem('aegis_saved_credentials', JSON.stringify(sessionData));
       }
+
+      // Live update in Personnel duty logins table
+      try {
+        const storedLogins = JSON.parse(localStorage.getItem('aegis_duty_logins') || '[]');
+        const newLoginLog = {
+          id: Date.now(),
+          service_number: account.serviceId,
+          name: account.operatorName,
+          rank: account.rank || regRank,
+          unit: account.unit || regUnit,
+          action: 'DUTY_LOGIN',
+          terminal_id: `TERMINAL-${selectedBase.code || 'LAC-NORTH'}`,
+          ip_address: '10.14.0.12',
+          status: 'AUTHORIZED',
+          timestamp: currentTimestamp
+        };
+        localStorage.setItem('aegis_duty_logins', JSON.stringify([newLoginLog, ...storedLogins.filter((l: any) => l.service_number !== account.serviceId || l.timestamp !== currentTimestamp)]));
+
+        // Live update in Personnel activity trail
+        const storedActivities = JSON.parse(localStorage.getItem('aegis_personnel_activities') || '[]');
+        const newAct = {
+          id: Date.now(),
+          soldier_id: account.serviceId,
+          soldier_name: account.operatorName,
+          rank: account.rank || regRank,
+          activity_type: 'DUTY_LOGIN',
+          details: `Authenticated to ${selectedBase.name} (${selectedBase.code})`,
+          terminal_id: `TERMINAL-${selectedBase.code || 'LAC-NORTH'}`,
+          timestamp: currentTimestamp
+        };
+        localStorage.setItem('aegis_personnel_activities', JSON.stringify([newAct, ...storedActivities]));
+      } catch {}
 
       tacticalSiren.initContext();
       setSuccessMsg(`✅ CREDENTIALS VERIFIED. WELCOME, ${account.rank.toUpperCase()} ${account.operatorName.toUpperCase()}. ACCESSING DEFENSE GRID...`);
@@ -352,6 +386,10 @@ export default function Login() {
 
       const updatedAccounts = [...allAccounts, newAccount];
       localStorage.setItem('aegis_accounts', JSON.stringify(updatedAccounts));
+      // Ensure new account starts with clean slate
+      localStorage.removeItem('aegis_sample_dataset_loaded');
+
+      const currentTimestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
       const sessionData = {
         ...newAccount,
@@ -359,7 +397,7 @@ export default function Login() {
         webcamEnabled,
         ipCameraUrl,
         backendStreamEnabled,
-        loginTimestamp: new Date().toISOString()
+        loginTimestamp: currentTimestamp
       };
 
       localStorage.setItem('aegis_session', JSON.stringify(sessionData));
@@ -367,6 +405,37 @@ export default function Login() {
       if (rememberCredentials) {
         localStorage.setItem('aegis_saved_credentials', JSON.stringify(sessionData));
       }
+
+      // Live update in Personnel duty logins table
+      try {
+        const storedLogins = JSON.parse(localStorage.getItem('aegis_duty_logins') || '[]');
+        const newLoginLog = {
+          id: Date.now(),
+          service_number: newAccount.serviceId,
+          name: newAccount.operatorName,
+          rank: newAccount.rank,
+          unit: newAccount.unit,
+          action: 'ENROLLED & DUTY_LOGIN',
+          terminal_id: `TERMINAL-${selectedBase.code || 'LAC-NORTH'}`,
+          ip_address: '10.14.0.12',
+          status: 'AUTHORIZED',
+          timestamp: currentTimestamp
+        };
+        localStorage.setItem('aegis_duty_logins', JSON.stringify([newLoginLog, ...storedLogins]));
+
+        const storedActivities = JSON.parse(localStorage.getItem('aegis_personnel_activities') || '[]');
+        const newAct = {
+          id: Date.now(),
+          soldier_id: newAccount.serviceId,
+          soldier_name: newAccount.operatorName,
+          rank: newAccount.rank,
+          activity_type: 'OPERATOR_ENROLLED',
+          details: `Enrolled new operator with ${newAccount.clearanceLevel} at ${selectedBase.name}`,
+          terminal_id: `TERMINAL-${selectedBase.code || 'LAC-NORTH'}`,
+          timestamp: currentTimestamp
+        };
+        localStorage.setItem('aegis_personnel_activities', JSON.stringify([newAct, ...storedActivities]));
+      } catch {}
 
       tacticalSiren.initContext();
       setSuccessMsg(`✅ OPERATOR "${trimmedId}" ENROLLED & REGISTERED. ACCESSING DEFENSE GRID...`);
