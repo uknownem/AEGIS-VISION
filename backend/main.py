@@ -25,6 +25,8 @@ try:
         init_db,
         record_soldier_login,
         get_soldier_logs,
+        record_personnel_activity,
+        get_personnel_activities,
         record_security_alert,
         get_security_alerts,
         update_alert_status,
@@ -36,11 +38,14 @@ except ImportError:
         init_db,
         record_soldier_login,
         get_soldier_logs,
+        record_personnel_activity,
+        get_personnel_activities,
         record_security_alert,
         get_security_alerts,
         update_alert_status,
         get_database_stats
     )
+
 
 
 try:
@@ -426,10 +431,43 @@ def modify_alert_status(alert_id: int, req: AlertStatusUpdateRequest):
         raise HTTPException(status_code=404, detail="Alert ID not found")
     return {"status": "success", "message": f"Alert {alert_id} updated to {req.status}"}
 
+class PersonnelActivityRequest(BaseModel):
+    soldier_id: str = Field(..., example="IA-948201")
+    soldier_name: str = Field(..., example="Subedar Vikram Singh")
+    rank: str = Field(default="Subedar")
+    activity_type: str = Field(..., example="CAMERA_FEED_ACCESSED")
+    details: str = Field(..., example="Opened CAM-07 Himalayan Sector live optical stream")
+    terminal_id: Optional[str] = Field(default="TERMINAL-HQ-ALPHA")
+
+# --- PERSONNEL ACTIVITY AUDIT TRAIL DATABASE ROUTES ---
+
+@app.post("/api/personnel/activity")
+def save_personnel_activity(req: PersonnelActivityRequest):
+    """
+    Saves an action or activity performed by a logged-in soldier to the persistent database.
+    """
+    act = record_personnel_activity(
+        soldier_id=req.soldier_id,
+        soldier_name=req.soldier_name,
+        rank=req.rank,
+        activity_type=req.activity_type,
+        details=req.details,
+        terminal_id=req.terminal_id or "TERMINAL-HQ-ALPHA"
+    )
+    return {"status": "success", "message": "Personnel activity recorded in database", "data": act}
+
+@app.get("/api/personnel/activity")
+def list_personnel_activities(limit: int = Query(default=100, le=300)):
+    """
+    Retrieves the complete audit trail of all activities performed by logged-in personnel.
+    """
+    activities = get_personnel_activities(limit=limit)
+    return {"status": "success", "count": len(activities), "data": activities}
+
 @app.get("/api/database/stats")
 def database_statistics():
     """
-    Returns total soldier logins, active alerts, and siren activations from the database.
+    Returns total soldier logins, active alerts, activities, and siren activations from the database.
     """
     stats = get_database_stats()
     return {"status": "success", "stats": stats}
@@ -441,3 +479,4 @@ def read_root():
 @app.get("/health")
 def health_check():
     return {"status": "ok", "active_ws_clients": len(active_connections)}
+

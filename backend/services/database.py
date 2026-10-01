@@ -13,7 +13,7 @@ def get_connection():
     return conn
 
 def init_db():
-    """Initializes database tables and ensures all soldier duty logins and siren alerts are stored."""
+    """Initializes database tables and ensures all soldier duty logins, activities, and siren alerts are stored."""
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -52,6 +52,21 @@ def init_db():
     );
     """)
 
+    # 3. Comprehensive Personnel Activity & Action Audit Log Table
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS personnel_activities (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        soldier_id TEXT NOT NULL,
+        soldier_name TEXT NOT NULL,
+        rank TEXT NOT NULL,
+        activity_type TEXT NOT NULL,
+        details TEXT NOT NULL,
+        terminal_id TEXT NOT NULL DEFAULT 'TERMINAL-HQ-ALPHA',
+        timestamp TEXT NOT NULL,
+        created_at REAL NOT NULL
+    );
+    """)
+
     # Complete Indian Army soldier duty login database records
     all_soldiers = [
         ("IA-948201", "Subedar Vikram Singh", "Subedar", "14 Corps - High Altitude Recon", "LOGIN", "TERMINAL-LAC-NORTH", "10.14.2.10", "AUTHORIZED", "2026-10-01 14:15:22", time.time() - 3600),
@@ -76,7 +91,7 @@ def init_db():
     # Seed security alerts & siren warnings
     all_siren_alerts = [
         ("NON_HUMAN_INTRUSION", "Main Battle Tank / BMP", 0.965, "CAM-07", "LAC Northern Sector", 1, "ACTIVE", 48.2, "Armored vehicle detected at snow transit corridor // TACTICAL SIREN ACTIVATED", "2026-10-01 14:24:12", time.time() - 1200),
-        ("NON_HUMAN_INTRUSION", "charger / spoon / object", 0.930, "CAM-01", "Perimeter Fence Alpha", 1, "ACKNOWLEDGED", 1.4, "Non-human foreign object detected in base perimeter // SIREN LOGGED", "2026-10-01 14:10:00", time.time() - 2400),
+        ("NON_HUMAN_INTRUSION", "charger / spoon / object", 0.930, "CAM-01", "Perimeter Fence Alpha", 1, "ACKNOWLEDGED", 1.4, "Non-human foreign object detected in base perimeter // CONTINUOUS SIREN ENGAGED", "2026-10-01 14:10:00", time.time() - 2400),
         ("NON_HUMAN_INTRUSION", "Unidentified Aerial Drone (UAV)", 0.942, "CAM-04", "Eastern Ridge Pass", 1, "ACTIVE", 125.0, "Low-altitude unauthorized drone breach // SIREN WAILING", "2026-10-01 14:30:15", time.time() - 800),
         ("CAMOUFLAGE_BREACH", "Thermal Heat Signature", 0.890, "CAM-02", "Main Gate Corridor", 1, "RESOLVED", 18.5, "Camouflage target movement intercepted // Operator cleared", "2026-10-01 13:55:00", time.time() - 3200)
     ]
@@ -89,8 +104,27 @@ def init_db():
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, all_siren_alerts)
 
+    # Seed initial personnel activity logs
+    cursor.execute("SELECT COUNT(*) FROM personnel_activities")
+    if cursor.fetchone()[0] == 0:
+        initial_activities = [
+            ("IA-948201", "Subedar Vikram Singh", "Subedar", "DUTY_LOGIN", "Authenticated to LAC Northern Sector command terminal", "TERMINAL-LAC-NORTH", "2026-10-01 14:15:22", time.time() - 3600),
+            ("IA-948201", "Subedar Vikram Singh", "Subedar", "CAMERA_FEED_ACCESSED", "Opened 4K live tactical stream for CAM-07 (LAC Northern Sector)", "TERMINAL-LAC-NORTH", "2026-10-01 14:16:05", time.time() - 3550),
+            ("IA-773194", "Major Rajesh Sharma", "Major", "DEFCON_MODIFIED", "Elevated facility readiness to DEFCON-2 following radar contact", "TERMINAL-HQ-ALPHA", "2026-10-01 14:22:10", time.time() - 2500),
+            ("IA-773194", "Major Rajesh Sharma", "Major", "SIREN_ARMED", "Armed automated tactical siren for non-human object intrusions", "TERMINAL-HQ-ALPHA", "2026-10-01 14:23:45", time.time() - 2450),
+            ("IA-661038", "Havildar Gurpreet Singh", "Havildar", "SNAPSHOT_CAPTURED", "Saved high-resolution incursion frame at Perimeter Checkpoint Alpha", "TERMINAL-CHECKPOINT-4", "2026-10-01 14:29:12", time.time() - 1750),
+            ("IA-829104", "Captain Ananya Roy", "Captain", "ZONE_INSPECTED", "Verified Zone Alpha restricted boundary status on satellite GIS map", "TERMINAL-DRONE-OPS", "2026-10-01 14:33:50", time.time() - 1100),
+            ("IA-550192", "Lieutenant Karan Verma", "Lieutenant", "ALERT_ACKNOWLEDGED", "Acknowledged incursion event #2 (Foreign object perimeter contact)", "TERMINAL-ARMOR-DEPOT", "2026-10-01 14:36:20", time.time() - 850)
+        ]
+        cursor.executemany("""
+        INSERT INTO personnel_activities (soldier_id, soldier_name, rank, activity_type, details, terminal_id, timestamp, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, initial_activities)
+
     conn.commit()
     conn.close()
+
+# --- Soldier Authentication / Login API Helpers ---
 
 def record_soldier_login(
     service_number: str,
@@ -114,6 +148,13 @@ def record_soldier_login(
     """, (service_number, name, rank, unit, action, terminal_id, ip_address, status, now_str, now_ts))
     
     log_id = cursor.lastrowid
+
+    # Automatically also record into personnel_activities
+    cursor.execute("""
+    INSERT INTO personnel_activities (soldier_id, soldier_name, rank, activity_type, details, terminal_id, timestamp, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (service_number, name, rank, "DUTY_LOGIN", f"Soldier logged in to duty station from IP {ip_address}", terminal_id, now_str, now_ts))
+
     conn.commit()
     conn.close()
 
@@ -143,6 +184,58 @@ def get_soldier_logs(limit: int = 50) -> List[Dict[str, Any]]:
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+# --- Personnel Activity Audit Logging ---
+
+def record_personnel_activity(
+    soldier_id: str,
+    soldier_name: str,
+    rank: str,
+    activity_type: str,
+    details: str,
+    terminal_id: str = "TERMINAL-HQ-ALPHA"
+) -> Dict[str, Any]:
+    """Records an operator or soldier activity in the persistent audit trail."""
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_ts = time.time()
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    INSERT INTO personnel_activities (soldier_id, soldier_name, rank, activity_type, details, terminal_id, timestamp, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (soldier_id, soldier_name, rank, activity_type, details, terminal_id, now_str, now_ts))
+    
+    act_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    return {
+        "id": act_id,
+        "soldier_id": soldier_id,
+        "soldier_name": soldier_name,
+        "rank": rank,
+        "activity_type": activity_type,
+        "details": details,
+        "terminal_id": terminal_id,
+        "timestamp": now_str
+    }
+
+def get_personnel_activities(limit: int = 100) -> List[Dict[str, Any]]:
+    """Retrieves all personnel activities ordered by newest first."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+    SELECT id, soldier_id, soldier_name, rank, activity_type, details, terminal_id, timestamp, created_at
+    FROM personnel_activities
+    ORDER BY id DESC
+    LIMIT ?
+    """, (limit,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+# --- Security Alerts & Siren Trigger API Helpers ---
 
 def record_security_alert(
     alert_type: str,
@@ -238,10 +331,14 @@ def get_database_stats() -> Dict[str, Any]:
     cursor.execute("SELECT COUNT(*) FROM security_alerts WHERE siren_triggered = 1")
     siren_count = cursor.fetchone()[0]
 
+    cursor.execute("SELECT COUNT(*) FROM personnel_activities")
+    activity_count = cursor.fetchone()[0]
+
     conn.close()
     return {
         "total_soldier_logins": total_logins,
         "total_security_alerts": total_alerts,
         "active_alerts": active_alerts,
-        "siren_activations": siren_count
+        "siren_activations": siren_count,
+        "total_activities_logged": activity_count
     }

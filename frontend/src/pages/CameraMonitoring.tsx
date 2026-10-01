@@ -34,16 +34,44 @@ export default function CameraMonitoring() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
+  // Continuous Siren State with Hysteresis (Persistence Hold to prevent frame drops from stopping siren)
+  const [activeSirenAlert, setActiveSirenAlert] = useState(false);
+  const lastThreatTimeRef = useRef<number>(0);
+  const sirenHoldTimerRef = useRef<any>(null);
+
   // Non-human target detection calculation
   const nonHumanDetections = detections.filter(d => d.class_id !== 0 && (d.is_non_human !== false));
-  const hasNonHumanThreat = nonHumanDetections.length > 0;
+  const hasRawNonHuman = nonHumanDetections.length > 0;
   const hasHumanThreat = detections.some(d => d.class_id === 0);
   const latestHuman = detections.find(d => d.class_id === 0);
   const latestNonHuman = nonHumanDetections[0];
 
-  // Siren Trigger: Sounds pitch-sweeping emergency siren when non-human object is detected
+  // Object Detection Persistence Tracker: keeps siren ON continuously until object completely exits
   useEffect(() => {
-    if (hasNonHumanThreat && sirenEnabled) {
+    if (hasRawNonHuman) {
+      lastThreatTimeRef.current = Date.now();
+      setActiveSirenAlert(true);
+      if (sirenHoldTimerRef.current) {
+        clearTimeout(sirenHoldTimerRef.current);
+        sirenHoldTimerRef.current = null;
+      }
+    } else {
+      // If object was detected, hold the siren active for 1.8s of sustained absence before shutting off
+      if (activeSirenAlert && !sirenHoldTimerRef.current) {
+        sirenHoldTimerRef.current = setTimeout(() => {
+          const elapsed = Date.now() - lastThreatTimeRef.current;
+          if (elapsed >= 1500) {
+            setActiveSirenAlert(false);
+          }
+          sirenHoldTimerRef.current = null;
+        }, 1500);
+      }
+    }
+  }, [hasRawNonHuman, activeSirenAlert]);
+
+  // Master Continuous Siren Trigger: continuously wails while non-human object is present
+  useEffect(() => {
+    if (activeSirenAlert && sirenEnabled && !alertEscalated) {
       tacticalSiren.startSiren();
     } else {
       tacticalSiren.stop();
@@ -52,7 +80,10 @@ export default function CameraMonitoring() {
     return () => {
       tacticalSiren.stop();
     };
-  }, [hasNonHumanThreat, sirenEnabled]);
+  }, [activeSirenAlert, sirenEnabled, alertEscalated]);
+
+  const hasNonHumanThreat = activeSirenAlert;
+
 
   // 1. WebSocket connection for live detections & vector distances
   useEffect(() => {

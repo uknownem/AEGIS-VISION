@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { mockPersonnel } from '../mockData';
-import { User, ShieldCheck, ShieldAlert, Search, Clock, Plus, CheckCircle2, RefreshCw, Terminal, UserCheck } from 'lucide-react';
+import { User, ShieldCheck, ShieldAlert, Search, Clock, Plus, CheckCircle2, RefreshCw, Terminal, UserCheck, Activity } from 'lucide-react';
 
 interface SoldierLog {
   id: number;
@@ -15,57 +15,80 @@ interface SoldierLog {
   timestamp: string;
 }
 
+interface PersonnelActivity {
+  id: number;
+  soldier_id: string;
+  soldier_name: string;
+  rank: string;
+  activity_type: string;
+  details: string;
+  terminal_id: string;
+  timestamp: string;
+}
+
 export default function Personnel() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTab, setActiveTab] = useState<'directory' | 'login_logs'>('login_logs');
+  const [activeTab, setActiveTab] = useState<'activity_logs' | 'login_logs' | 'directory'>('activity_logs');
   const [soldierLogs, setSoldierLogs] = useState<SoldierLog[]>([]);
-  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [activities, setActivities] = useState<PersonnelActivity[]>([]);
+  const [loading, setLoading] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   // Form State for quick soldier login check-in
   const [newLogin, setNewLogin] = useState({
-    service_number: 'IA-',
-    name: '',
+    service_number: 'IA-948201',
+    name: 'Subedar Vikram Singh',
     rank: 'Subedar',
     unit: '14 Corps - High Altitude Recon',
     action: 'LOGIN',
-    terminal_id: 'TERMINAL-LAC-01'
+    terminal_id: 'TERMINAL-LAC-NORTH'
   });
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
-  // Fetch Soldier Login Logs from SQLite Database via FastAPI
-  const fetchSoldierLogs = async () => {
-    setLoadingLogs(true);
+  // Fetch Soldier Login Logs & Activity History from SQLite Database
+  const fetchData = async () => {
+    setLoading(true);
     try {
-      const res = await fetch('http://localhost:8000/api/auth/soldier-logs');
-      if (res.ok) {
-        const json = await res.json();
+      // 1. Fetch Logins
+      const resLogs = await fetch('http://localhost:8000/api/auth/soldier-logs');
+      if (resLogs.ok) {
+        const json = await resLogs.json();
         if (json.data && Array.isArray(json.data)) {
           setSoldierLogs(json.data);
         }
-      } else {
-        // Fallback default demo records if backend is in standalone mode
-        setSoldierLogs([
-          { id: 1, service_number: 'IA-948201', name: 'Subedar Vikram Singh', rank: 'Subedar', unit: '14 Corps - High Altitude Recon', action: 'LOGIN', terminal_id: 'TERMINAL-LAC-NORTH', ip_address: '10.14.2.10', status: 'AUTHORIZED', timestamp: '2026-10-01 14:15:22' },
-          { id: 2, service_number: 'IA-773194', name: 'Major Rajesh Sharma', rank: 'Major', unit: '9 Para Special Forces', action: 'LOGIN', terminal_id: 'TERMINAL-HQ-ALPHA', ip_address: '10.14.1.04', status: 'AUTHORIZED', timestamp: '2026-10-01 14:20:05' },
-          { id: 3, service_number: 'IA-661038', name: 'Havildar Gurpreet Singh', rank: 'Havildar', unit: 'Sikh Light Infantry', action: 'LOGIN', terminal_id: 'TERMINAL-CHECKPOINT-4', ip_address: '10.14.3.18', status: 'AUTHORIZED', timestamp: '2026-10-01 14:28:40' },
-          { id: 4, service_number: 'IA-829104', name: 'Captain Ananya Roy', rank: 'Captain', unit: 'Signals Intelligence Wing', action: 'STATION_CHECK_IN', terminal_id: 'TERMINAL-DRONE-OPS', ip_address: '10.14.1.88', status: 'AUTHORIZED', timestamp: '2026-10-01 14:32:10' }
-        ]);
+      }
+
+      // 2. Fetch Activities
+      const resActs = await fetch('http://localhost:8000/api/personnel/activity');
+      if (resActs.ok) {
+        const jsonActs = await resActs.json();
+        if (jsonActs.data && Array.isArray(jsonActs.data)) {
+          setActivities(jsonActs.data);
+        }
       }
     } catch {
+      // Offline mock fallback
       setSoldierLogs([
         { id: 1, service_number: 'IA-948201', name: 'Subedar Vikram Singh', rank: 'Subedar', unit: '14 Corps - High Altitude Recon', action: 'LOGIN', terminal_id: 'TERMINAL-LAC-NORTH', ip_address: '10.14.2.10', status: 'AUTHORIZED', timestamp: '2026-10-01 14:15:22' },
-        { id: 2, service_number: 'IA-773194', name: 'Major Rajesh Sharma', rank: 'Major', unit: '9 Para Special Forces', action: 'LOGIN', terminal_id: 'TERMINAL-HQ-ALPHA', ip_address: '10.14.1.04', status: 'AUTHORIZED', timestamp: '2026-10-01 14:20:05' }
+        { id: 2, service_number: 'IA-773194', name: 'Major Rajesh Sharma', rank: 'Major', unit: '9 Para Special Forces', action: 'LOGIN', terminal_id: 'TERMINAL-HQ-ALPHA', ip_address: '10.14.1.04', status: 'AUTHORIZED', timestamp: '2026-10-01 14:20:05' },
+        { id: 3, service_number: 'IA-661038', name: 'Havildar Gurpreet Singh', rank: 'Havildar', unit: 'Sikh Light Infantry', action: 'LOGIN', terminal_id: 'TERMINAL-CHECKPOINT-4', ip_address: '10.14.3.18', status: 'AUTHORIZED', timestamp: '2026-10-01 14:28:40' }
+      ]);
+      setActivities([
+        { id: 1, soldier_id: 'IA-948201', soldier_name: 'Subedar Vikram Singh', rank: 'Subedar', activity_type: 'DUTY_LOGIN', details: 'Authenticated to LAC Northern Sector command terminal', terminal_id: 'TERMINAL-LAC-NORTH', timestamp: '2026-10-01 14:15:22' },
+        { id: 2, soldier_id: 'IA-948201', soldier_name: 'Subedar Vikram Singh', rank: 'Subedar', activity_type: 'CAMERA_FEED_ACCESSED', details: 'Opened 4K live tactical stream for CAM-07 (LAC Northern Sector)', terminal_id: 'TERMINAL-LAC-NORTH', timestamp: '2026-10-01 14:16:05' },
+        { id: 3, soldier_id: 'IA-773194', soldier_name: 'Major Rajesh Sharma', rank: 'Major', activity_type: 'DEFCON_MODIFIED', details: 'Elevated facility readiness to DEFCON-2 following radar contact', terminal_id: 'TERMINAL-HQ-ALPHA', timestamp: '2026-10-01 14:22:10' },
+        { id: 4, soldier_id: 'IA-773194', soldier_name: 'Major Rajesh Sharma', rank: 'Major', activity_type: 'SIREN_ARMED', details: 'Armed automated continuous tactical siren for non-human object intrusions', terminal_id: 'TERMINAL-HQ-ALPHA', timestamp: '2026-10-01 14:23:45' },
+        { id: 5, soldier_id: 'IA-661038', soldier_name: 'Havildar Gurpreet Singh', rank: 'Havildar', activity_type: 'SNAPSHOT_CAPTURED', details: 'Saved incursion snapshot frame at Perimeter Checkpoint Alpha', terminal_id: 'TERMINAL-CHECKPOINT-4', timestamp: '2026-10-01 14:29:12' }
       ]);
     } finally {
-      setLoadingLogs(false);
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchSoldierLogs();
-    const interval = setInterval(fetchSoldierLogs, 6000);
+    fetchData();
+    const interval = setInterval(fetchData, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -84,33 +107,26 @@ export default function Personnel() {
       });
 
       if (res.ok) {
-        setSuccessMsg('Soldier login successfully logged into database!');
+        setSuccessMsg('Soldier login & initial activity successfully logged into database!');
         setTimeout(() => {
           setShowLoginModal(false);
           setSuccessMsg('');
-          fetchSoldierLogs();
-        }, 1000);
+          fetchData();
+        }, 800);
       }
     } catch {
-      // Local optimistic append if backend offline
-      const optimisticEntry: SoldierLog = {
-        id: Date.now(),
-        service_number: newLogin.service_number,
-        name: newLogin.name,
-        rank: newLogin.rank,
-        unit: newLogin.unit,
-        action: newLogin.action,
-        terminal_id: newLogin.terminal_id,
-        ip_address: '10.14.0.1',
-        status: 'AUTHORIZED',
-        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19)
-      };
-      setSoldierLogs(prev => [optimisticEntry, ...prev]);
       setShowLoginModal(false);
     } finally {
       setSubmitting(false);
     }
   };
+
+  const filteredActivities = activities.filter(act => 
+    act.soldier_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    act.soldier_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    act.activity_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    act.details.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const filteredLogs = soldierLogs.filter(log => 
     log.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -129,18 +145,18 @@ export default function Personnel() {
       {/* Top Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
-          <h2 style={{ color: 'var(--color-accent)' }}>SOLDIER & PERSONNEL AUTHENTICATION</h2>
+          <h2 style={{ color: 'var(--color-accent)' }}>PERSONNEL ACTIVITIES & DUTY AUDIT TRAIL</h2>
           <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
-            DATABASE-BACKED DUTY ROSTER, LOGIN LOGS & BIOMETRIC CLEARANCE
+            SQLITE PERSISTENT LOGS OF ALL SOLDIER LOGINS, SENSOR ACCESS & DEFENSE ACTIONS
           </p>
         </div>
         
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <div style={{ position: 'relative', width: 260 }}>
+          <div style={{ position: 'relative', width: 280 }}>
             <Search size={15} style={{ position: 'absolute', left: 10, top: 11, color: 'var(--color-text-muted)' }} />
             <input 
               type="text" 
-              placeholder="Search soldier, ID, or unit..." 
+              placeholder="Search soldier, action, or ID..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{ paddingLeft: 34, fontSize: 13 }} 
@@ -160,6 +176,26 @@ export default function Personnel() {
       {/* Tabs Switcher */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 20, borderBottom: '1px solid var(--color-border)', paddingBottom: 10 }}>
         <button
+          onClick={() => setActiveTab('activity_logs')}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 4,
+            fontSize: 12,
+            fontFamily: "'Share Tech Mono', monospace",
+            backgroundColor: activeTab === 'activity_logs' ? 'var(--color-accent)' : 'var(--color-surface)',
+            color: activeTab === 'activity_logs' ? '#000' : 'var(--color-text)',
+            border: '1px solid var(--color-border)',
+            cursor: 'pointer',
+            fontWeight: activeTab === 'activity_logs' ? 'bold' : 'normal',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6
+          }}
+        >
+          <Activity size={14} /> ALL SOLDIER ACTIVITIES ({activities.length})
+        </button>
+
+        <button
           onClick={() => setActiveTab('login_logs')}
           style={{
             padding: '8px 16px',
@@ -176,7 +212,7 @@ export default function Personnel() {
             gap: 6
           }}
         >
-          <Clock size={14} /> LIVE SOLDIER LOGIN LOGS ({soldierLogs.length})
+          <Clock size={14} /> DUTY LOGINS ({soldierLogs.length})
         </button>
 
         <button
@@ -200,20 +236,81 @@ export default function Personnel() {
         </button>
 
         <button 
-          onClick={fetchSoldierLogs}
+          onClick={fetchData}
           title="Refresh database logs"
           style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', padding: '6px 10px', borderRadius: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}
         >
-          <RefreshCw size={12} className={loadingLogs ? "animate-spin" : ""} /> REFRESH DB
+          <RefreshCw size={12} className={loading ? "animate-spin" : ""} /> REFRESH DB
         </button>
       </div>
 
-      {/* TAB 1: Live Database Soldier Login Logs */}
+      {/* TAB 1: Live Database Soldier Activity Logs */}
+      {activeTab === 'activity_logs' && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '12px 18px', backgroundColor: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h4 style={{ fontSize: 13, color: 'var(--color-accent)', letterSpacing: 1 }}>
+              LIVE PERSISTENT SOLDIER ACTION & AUDIT TRAIL (SQLITE DB)
+            </h4>
+            <span style={{ fontSize: 11, color: 'var(--color-success)', fontFamily: "'Share Tech Mono', monospace" }}>
+              ● REAL-TIME AUDITING ACTIVE
+            </span>
+          </div>
+
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, fontFamily: "'Share Tech Mono', monospace" }}>
+              <thead>
+                <tr style={{ backgroundColor: 'var(--color-surface-light)', textAlign: 'left', borderBottom: '1px solid var(--color-border)', color: 'var(--color-text-muted)' }}>
+                  <th style={{ padding: '10px 16px' }}>SOLDIER & RANK</th>
+                  <th style={{ padding: '10px 16px' }}>SERVICE ID</th>
+                  <th style={{ padding: '10px 16px' }}>ACTION / EVENT</th>
+                  <th style={{ padding: '10px 16px' }}>ACTIVITY DETAILS</th>
+                  <th style={{ padding: '10px 16px' }}>TERMINAL</th>
+                  <th style={{ padding: '10px 16px' }}>EXACT TIMESTAMP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredActivities.map((act) => (
+                  <tr key={act.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                    <td style={{ padding: '12px 16px', color: '#fff' }}>
+                      <strong>{act.soldier_name}</strong>
+                      <span style={{ display: 'block', fontSize: 10, color: 'var(--color-accent)' }}>{act.rank}</span>
+                    </td>
+                    <td style={{ padding: '12px 16px', color: 'var(--color-accent)' }}>
+                      {act.soldier_id}
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span className="badge" style={{ 
+                        backgroundColor: act.activity_type.includes('SIREN') || act.activity_type.includes('ALERT') ? 'rgba(239, 68, 68, 0.2)' : 'rgba(163, 230, 53, 0.15)',
+                        color: act.activity_type.includes('SIREN') || act.activity_type.includes('ALERT') ? 'var(--color-alert)' : 'var(--color-accent)'
+                      }}>
+                        {act.activity_type}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 16px', color: 'var(--color-text)' }}>
+                      {act.details}
+                    </td>
+                    <td style={{ padding: '12px 16px', color: 'var(--color-text-dim)' }}>
+                      <Terminal size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                      {act.terminal_id}
+                    </td>
+                    <td style={{ padding: '12px 16px', color: 'var(--color-text-muted)' }}>
+                      <Clock size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />
+                      {act.timestamp}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 2: Live Database Soldier Login Logs */}
       {activeTab === 'login_logs' && (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div style={{ padding: '12px 18px', backgroundColor: 'var(--color-surface)', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h4 style={{ fontSize: 13, color: 'var(--color-accent)', letterSpacing: 1 }}>
-              PERSISTENT SOLDIER DUTY LOGINS & ACCESS TIMESTAMPS (SQLITE DATABASE)
+              PERSISTENT SOLDIER DUTY LOGINS & ACCESS TIMESTAMPS
             </h4>
             <span style={{ fontSize: 11, color: 'var(--color-success)', fontFamily: "'Share Tech Mono', monospace" }}>
               ● DATABASE: ACTIVE & SYNCED
@@ -235,14 +332,14 @@ export default function Personnel() {
               </thead>
               <tbody>
                 {filteredLogs.map((log) => (
-                  <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', backgroundColor: 'transparent' }}>
+                  <tr key={log.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                     <td style={{ padding: '12px 16px', color: 'var(--color-accent)', fontWeight: 'bold' }}>
                       {log.service_number}
                     </td>
                     <td style={{ padding: '12px 16px', color: '#fff' }}>
                       {log.name}
                     </td>
-                    <td style={{ padding: '12px 16px', color: 'var(--color-text)' }}>
+                    <td style={{ padding: '12px 16px' }}>
                       <span className="badge" style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
                         {log.rank}
                       </span>
@@ -278,7 +375,7 @@ export default function Personnel() {
         </div>
       )}
 
-      {/* TAB 2: Personnel Directory */}
+      {/* TAB 3: Personnel Directory */}
       {activeTab === 'directory' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
           {filteredPersonnel.map(person => (
@@ -312,10 +409,10 @@ export default function Personnel() {
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div className="card animate-fade-in" style={{ maxWidth: 480, width: '100%', borderColor: 'var(--color-accent)' }}>
             <h3 style={{ color: 'var(--color-accent)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <ShieldCheck size={20} /> RECORD SOLDIER DUTY LOGIN
+              <ShieldCheck size={20} /> RECORD SOLDIER DUTY LOGIN & ACTIONS
             </h3>
             <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 16 }}>
-              Logs the soldier's exact authentication timestamp and duty post in the SQLite database.
+              Logs the soldier's authentication timestamp, duty post, and activities in the SQLite database.
             </p>
 
             {successMsg && (
@@ -341,7 +438,7 @@ export default function Personnel() {
                 <input 
                   type="text" 
                   value={newLogin.name} 
-                  onChange={e => setNewLogin({ ...newLogin, name: e.target.value })}
+                  onChange={e => setNewLogin({ ...newLogin, name: e.target.value })} 
                   placeholder="e.g. Subedar Vikram Singh" 
                   required 
                 />
