@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { AlertTriangle, Clock, MapPin, Eye, CheckCircle, Siren, RefreshCw, Filter, ShieldAlert } from 'lucide-react';
+import { Clock, MapPin, Eye, CheckCircle, Siren, RefreshCw, Filter, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { tacticalSiren } from '../utils/siren';
 
@@ -182,14 +182,18 @@ export default function AlertCenter() {
               }}
             >
               <div style={{ display: 'flex', gap: 18, alignItems: 'center' }}>
-                <div style={{ padding: 14, backgroundColor: alert.status === 'ACTIVE' ? 'rgba(239, 68, 68, 0.25)' : 'var(--color-surface-light)', borderRadius: 8 }}>
-                  {alert.siren_triggered ? (
-                    <Siren color={alert.status === 'ACTIVE' ? 'var(--color-alert)' : '#94a3b8'} size={24} />
-                  ) : (
-                    <AlertTriangle color={alert.status === 'ACTIVE' ? 'var(--color-alert)' : 'var(--color-warning)'} size={24} />
-                  )}
+                {/* Security Snapshot Image Preview */}
+                <div style={{ position: 'relative', width: 110, height: 75, borderRadius: 4, overflow: 'hidden', border: alert.status === 'ACTIVE' ? '1px solid var(--color-alert)' : '1px solid var(--color-border)', flexShrink: 0 }}>
+                  <img 
+                    src={alert.camera_id === 'CAM-07' || alert.target_class.includes('Tank') ? '/cctv_himalayan_feed.jpg' : '/thermal_flir_alert.jpg'} 
+                    alt="Incursion Snapshot" 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                  />
+                  <div style={{ position: 'absolute', bottom: 2, left: 3, fontSize: 8, color: '#fff', backgroundColor: 'rgba(0,0,0,0.7)', padding: '1px 3px', borderRadius: 2, fontFamily: "'Share Tech Mono', monospace" }}>
+                    {alert.camera_id}
+                  </div>
                 </div>
-                
+
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                     <h3 style={{ margin: 0, color: alert.status === 'ACTIVE' ? 'var(--color-alert)' : 'var(--color-text)', fontSize: 15 }}>

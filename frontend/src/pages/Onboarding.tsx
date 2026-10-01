@@ -71,8 +71,8 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
                   <h3>LON 73.8567° E</h3>
                 </div>
               </div>
-              <div style={{ flex: 1, backgroundColor: 'var(--color-bg-dark)', borderRadius: 6, border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <p style={{ color: 'var(--color-text-muted)' }}>[ Mock Map Placeholder ]</p>
+              <div style={{ flex: 1, backgroundColor: 'var(--color-bg-dark)', borderRadius: 6, border: '1px solid var(--color-border)', overflow: 'hidden', height: 210 }}>
+                <img src="/satellite_base_map.jpg" alt="Military Satellite Base" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
             </div>
             <div style={{ marginTop: 30, display: 'flex', gap: 10 }}>
@@ -85,8 +85,11 @@ export default function Onboarding({ onComplete }: { onComplete?: () => void }) 
         return (
           <div className="card animate-fade-in">
             <h2>03 / Define Restricted Zones</h2>
-            <div style={{ backgroundColor: 'var(--color-bg-dark)', height: 200, borderRadius: 6, border: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 20 }}>
-              <p style={{ color: 'var(--color-text-muted)' }}>[ Mock Satellite Zone Editor ]</p>
+            <div style={{ backgroundColor: 'var(--color-bg-dark)', height: 200, borderRadius: 6, border: '1px solid var(--color-border)', overflow: 'hidden', position: 'relative', marginTop: 20 }}>
+              <img src="/satellite_base_map.jpg" alt="Satellite Zone Editor" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <div style={{ position: 'absolute', top: '25%', left: '30%', width: '40%', height: '50%', border: '2px solid #ef4444', backgroundColor: 'rgba(239, 68, 68, 0.25)', borderRadius: 4 }}>
+                <span style={{ fontSize: 9, color: '#fff', backgroundColor: '#ef4444', padding: '1px 4px' }}>ZONE ALPHA</span>
+              </div>
             </div>
             <div style={{ marginTop: 20 }}>
               <div style={{ padding: 10, borderLeft: '3px solid var(--color-accent)', backgroundColor: 'var(--color-surface-light)', marginBottom: 10 }}>
