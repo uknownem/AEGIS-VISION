@@ -1,9 +1,16 @@
+import sys
+import os
+
+# Ensure backend and current working directory are on sys.path
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
 import asyncio
 import cv2
 import json
 import time
 import math
-import os
 from contextlib import asynccontextmanager
 from typing import Optional, List
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query
@@ -12,16 +19,29 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import numpy as np
 
-from services.vision_engine import calculate_target_distance
-from services.database import (
-    init_db,
-    record_soldier_login,
-    get_soldier_logs,
-    record_security_alert,
-    get_security_alerts,
-    update_alert_status,
-    get_database_stats
-)
+try:
+    from services.vision_engine import calculate_target_distance
+    from services.database import (
+        init_db,
+        record_soldier_login,
+        get_soldier_logs,
+        record_security_alert,
+        get_security_alerts,
+        update_alert_status,
+        get_database_stats
+    )
+except ImportError:
+    from backend.services.vision_engine import calculate_target_distance
+    from backend.services.database import (
+        init_db,
+        record_soldier_login,
+        get_soldier_logs,
+        record_security_alert,
+        get_security_alerts,
+        update_alert_status,
+        get_database_stats
+    )
+
 
 try:
     from ultralytics import YOLO
