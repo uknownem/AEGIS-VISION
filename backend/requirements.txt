@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+pydantic
+ultralytics # For YOLO models
+opencv-python
+numpy

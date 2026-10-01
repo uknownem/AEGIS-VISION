@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+frontend/node_modules/
+venv/
+backend/venv/
+.venv/
+env/
+
+# Build artifacts
+dist/
+frontend/dist/
+build/
+*.egg-info/
+
+# Python cache
+__pycache__/
+*/__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment & IDE
+.env
+.env.local
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Heavy Datasets & Weights
+training/dataset/
+*.zip
+*.tar.gz
+*.pt
+

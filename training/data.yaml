@@ -1,0 +1,10 @@
+# data.yaml for YOLO Training with CAMO dataset
+
+train: ./yolo_dataset/images/train
+val: ./yolo_dataset/images/val
+
+# Number of classes
+nc: 1
+
+# Class names
+names: ['hidden_threat']
