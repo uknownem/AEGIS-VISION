@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { mockCameras } from '../mockData';
 import { 
   ArrowLeft, Maximize2, AlertTriangle, ShieldCheck, X, Camera, 
-  Eye, RefreshCw, VolumeX, Crosshair, ZoomIn, ZoomOut, Siren
+  Eye, VolumeX, Crosshair, ZoomIn, ZoomOut, Siren
 } from 'lucide-react';
 import { tacticalSiren } from '../utils/siren';
 import { API_BASE_URL, WS_BASE_URL } from '../config';
@@ -16,7 +16,14 @@ export default function CameraMonitoring() {
   const navigate = useNavigate();
   const camera = mockCameras.find(c => c.id === id) || mockCameras[0];
   
-  const [streamSource, setStreamSource] = useState<StreamSource>('backend');
+  // Default to simulated mode on cloud deployments (Vercel) when no backend server URL is configured
+  const [streamSource, setStreamSource] = useState<StreamSource>(() => {
+    if (typeof window !== 'undefined' && !window.location.hostname.includes('localhost') && !import.meta.env.VITE_API_URL) {
+      return 'simulated';
+    }
+    return 'backend';
+  });
+
   const [visionMode, setVisionMode] = useState<VisionMode>('normal');
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [alertEscalated, setAlertEscalated] = useState(false);
@@ -25,15 +32,37 @@ export default function CameraMonitoring() {
   const [fps, setFps] = useState(29.8);
   const [snapshotTaken, setSnapshotTaken] = useState(false);
   
-  // Real-time detection state from Backend WebSocket
+  // Simulated Intruder Threat Toggle (to test sirens interactively on cloud/Vercel)
+  const [simulatedThreatActive, setSimulatedThreatActive] = useState(true);
+
+  // Real-time detection state from Backend WebSocket or Tactical Simulator
   const [detections, setDetections] = useState<any[]>([]);
   const [wsStatus, setWsStatus] = useState<'CONNECTING' | 'CONNECTED' | 'OFFLINE'>('CONNECTING');
   const [backendImageError, setBackendImageError] = useState(false);
 
-  // References for Webcam & Canvas
+  // References for Webcam, Canvas & Background Image
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const bgImageRef = useRef<HTMLImageElement | null>(null);
+
+  // Determine cover picture path based on camera ID
+  const getCameraCover = (camId: string) => {
+    if (camId === 'CAM-01') return '/cctv_himalayan_feed.jpg';
+    if (camId === 'CAM-02') return '/cam02_main_gate.jpg';
+    if (camId === 'CAM-03') return '/thermal_flir_alert.jpg';
+    if (camId === 'CAM-04') return '/drone_aerial_recon.jpg';
+    return '/cctv_himalayan_feed.jpg';
+  };
+
+  // Preload background image for high-def tactical simulation canvas
+  useEffect(() => {
+    const img = new Image();
+    img.src = getCameraCover(camera.id);
+    img.onload = () => {
+      bgImageRef.current = img;
+    };
+  }, [camera.id]);
 
   // Continuous Siren State with Hysteresis (Persistence Hold to prevent frame drops from stopping siren)
   const [activeSirenAlert, setActiveSirenAlert] = useState(false);
@@ -57,7 +86,7 @@ export default function CameraMonitoring() {
         sirenHoldTimerRef.current = null;
       }
     } else {
-      // If object was detected, hold the siren active for 1.8s of sustained absence before shutting off
+      // If object was detected, hold the siren active for 1.5s of sustained absence before shutting off
       if (activeSirenAlert && !sirenHoldTimerRef.current) {
         sirenHoldTimerRef.current = setTimeout(() => {
           const elapsed = Date.now() - lastThreatTimeRef.current;
@@ -84,7 +113,6 @@ export default function CameraMonitoring() {
   }, [activeSirenAlert, sirenEnabled, alertEscalated]);
 
   const hasNonHumanThreat = activeSirenAlert;
-
 
   // 1. WebSocket connection for live detections & vector distances
   useEffect(() => {
@@ -164,7 +192,7 @@ export default function CameraMonitoring() {
     };
   }, [streamSource]);
 
-  // 3. Simulated Tactical Feed Canvas Animator (renders simulated human + non-human vehicle/drone targets)
+  // 3. High-Fidelity Tactical Surveillance Feed Canvas Animator
   useEffect(() => {
     let animationFrameId: number;
     let t = 0;
@@ -179,27 +207,41 @@ export default function CameraMonitoring() {
       const w = canvas.width;
       const h = canvas.height;
 
-      // Dark background
-      ctx.fillStyle = visionMode === 'nvg' ? '#041508' : (visionMode === 'thermal' ? '#180424' : '#0a0d0a');
-      ctx.fillRect(0, 0, w, h);
+      // Draw preloaded tactical background image or fallback gradient
+      const bg = bgImageRef.current;
+      if (bg && bg.complete && bg.naturalWidth > 0) {
+        ctx.drawImage(bg, 0, 0, w, h);
+        // Dimming & color grading overlay based on vision mode
+        if (visionMode === 'nvg') {
+          ctx.fillStyle = 'rgba(10, 45, 15, 0.45)';
+        } else if (visionMode === 'thermal') {
+          ctx.fillStyle = 'rgba(50, 10, 60, 0.45)';
+        } else {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        }
+        ctx.fillRect(0, 0, w, h);
+      } else {
+        ctx.fillStyle = visionMode === 'nvg' ? '#041508' : (visionMode === 'thermal' ? '#180424' : '#0a0d0a');
+        ctx.fillRect(0, 0, w, h);
+      }
 
-      // Grid matrix
-      ctx.strokeStyle = visionMode === 'nvg' ? 'rgba(74, 222, 128, 0.15)' : 'rgba(0, 255, 100, 0.08)';
+      // Tactical Matrix Grid Lines
+      ctx.strokeStyle = visionMode === 'nvg' ? 'rgba(74, 222, 128, 0.18)' : 'rgba(163, 230, 53, 0.1)';
       ctx.lineWidth = 1;
-      for (let x = 0; x < w; x += 40) {
+      for (let x = 0; x < w; x += 50) {
         ctx.beginPath();
         ctx.moveTo(x, 0);
         ctx.lineTo(x, h);
         ctx.stroke();
       }
-      for (let y = 0; y < h; y += 40) {
+      for (let y = 0; y < h; y += 50) {
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(w, y);
         ctx.stroke();
       }
 
-      // Target 1: Simulated Human
+      // Target 1: Tracked Soldier / Person
       const targetX = w / 2 + Math.sin(t * 0.8) * 140;
       const targetY = h / 2 + Math.cos(t * 0.5) * 60;
       
@@ -207,7 +249,7 @@ export default function CameraMonitoring() {
       ctx.lineWidth = 2;
       ctx.strokeRect(targetX - 25, targetY - 45, 50, 90);
       
-      // Target Reticle Corner Brackets
+      // Target Corner Reticle Brackets
       const bw = 8;
       ctx.fillStyle = ctx.strokeStyle;
       ctx.fillRect(targetX - 25, targetY - 45, bw, 2);
@@ -216,61 +258,74 @@ export default function CameraMonitoring() {
       ctx.fillRect(targetX + 25, targetY - 45, 2, bw);
 
       ctx.font = '12px "Share Tech Mono", monospace';
-      ctx.fillText('TARGET: HUMAN [0.96]', targetX - 25, targetY - 52);
+      ctx.fillText('SOLDIER: AUTHORIZED [0.97]', targetX - 25, targetY - 52);
       ctx.fillText('DIST: 14.2m // 3.2m/s', targetX - 25, targetY + 60);
 
-      // Target 2: NON-HUMAN Target (Simulated Charger / Spoon / Electronic Device / Object)
-      const vX = 180 + Math.cos(t * 0.4) * 120;
-      const vY = 380 + Math.sin(t * 0.6) * 30;
-      ctx.strokeStyle = '#ef4444'; // Red alarm for non-human object intrusion
-      ctx.lineWidth = 2.5;
-      ctx.strokeRect(vX - 35, vY - 25, 70, 50);
+      // Target 2: NON-HUMAN Target (Spoon / Charger / Vehicle / Drone Threat)
+      const vX = 220 + Math.cos(t * 0.45) * 130;
+      const vY = 360 + Math.sin(t * 0.6) * 40;
 
-      ctx.fillStyle = '#ef4444';
-      ctx.fillText('NON-HUMAN: CHARGER / OBJECT [0.93] 🚨 SIREN', vX - 35, vY - 32);
-      ctx.fillText('DIST: 1.4m // OBJECT LOCATED', vX - 35, vY + 40);
+      if (simulatedThreatActive) {
+        ctx.strokeStyle = '#ef4444'; // Red alarm for non-human object intrusion
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(vX - 35, vY - 25, 70, 50);
+
+        // Flashy warning box
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.15)';
+        ctx.fillRect(vX - 35, vY - 25, 70, 50);
+
+        ctx.fillStyle = '#ef4444';
+        const threatName = camera.id === 'CAM-01' ? 'SPOON / CHARGER / OBJECT' : (camera.id === 'CAM-04' ? 'UAV DRONE BREACH' : 'ARMORED VEHICLE / TANK');
+        ctx.fillText(`🚨 NON-HUMAN: ${threatName} [0.94]`, vX - 35, vY - 32);
+        ctx.fillText('DIST: 1.4m // SIREN ACTIVE', vX - 35, vY + 42);
+      }
 
       // Radar Scanline sweep
-      const sweepY = (t * 120) % h;
+      const sweepY = (t * 130) % h;
       const gradient = ctx.createLinearGradient(0, sweepY - 30, 0, sweepY);
       gradient.addColorStop(0, 'rgba(34, 197, 94, 0)');
       gradient.addColorStop(1, 'rgba(34, 197, 94, 0.25)');
       ctx.fillStyle = gradient;
       ctx.fillRect(0, sweepY - 30, w, 30);
 
-      // Update synthetic detections if backend offline
-      if (wsStatus === 'OFFLINE' && streamSource === 'simulated') {
-        setDetections([
+      // Update synthetic detections if backend offline or in simulation mode
+      if ((wsStatus === 'OFFLINE' || streamSource === 'simulated' || backendImageError)) {
+        const synDetections: any[] = [
           {
             class_id: 0,
             class_name: 'person',
-            confidence: 0.96,
+            confidence: 0.97,
             bbox: [targetX - 25, targetY - 45, targetX + 25, targetY + 45],
             distance_data: { distance_meters: 14.2, relative_vector: [4.1, 13.6] },
             is_non_human: false
-          },
-          {
+          }
+        ];
+
+        if (simulatedThreatActive) {
+          synDetections.push({
             class_id: 67,
-            class_name: 'charger / spoon / object',
-            confidence: 0.93,
+            class_name: camera.id === 'CAM-01' ? 'spoon / charger / object' : (camera.id === 'CAM-04' ? 'unauthorized UAV' : 'armored tank'),
+            confidence: 0.94,
             bbox: [vX - 35, vY - 25, vX + 35, vY + 25],
             distance_data: { distance_meters: 1.4, relative_vector: [0.8, 1.2] },
             is_non_human: true
-          }
-        ]);
+          });
+        }
+
+        setDetections(synDetections);
       }
 
       animationFrameId = requestAnimationFrame(renderSimulated);
     };
 
-    if (streamSource === 'simulated') {
+    if (streamSource === 'simulated' || (streamSource === 'backend' && backendImageError)) {
       renderSimulated();
     }
 
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [streamSource, visionMode, wsStatus]);
+  }, [streamSource, visionMode, wsStatus, backendImageError, simulatedThreatActive, camera.id]);
 
   // FPS ticker simulation
   useEffect(() => {
@@ -440,52 +495,58 @@ export default function CameraMonitoring() {
           )}
 
           {/* 1. AI Backend Live Stream */}
-          {streamSource === 'backend' && (
-            !backendImageError ? (
-              <img 
-                src={`${API_BASE_URL}/video_feed`} 
-                alt="AI Live Video Stream"
-                onError={() => setBackendImageError(true)}
-                style={{ 
-                  width: '100%', 
-                  height: '100%', 
-                  objectFit: 'contain',
-                  transform: `scale(${zoomLevel})`,
-                  transition: 'transform 0.2s ease',
-                  ...getVisionFilterStyle()
-                }} 
-              />
-            ) : (
-              <div style={{ textAlign: 'center', padding: 20 }}>
-                <AlertTriangle size={36} color="var(--color-warning)" style={{ marginBottom: 12 }} />
-                <p style={{ color: 'var(--color-text)', fontSize: 14, marginBottom: 8 }}>
-                  FastAPI Video Backend Stream (Port 8000) not responding.
-                </p>
-                <p style={{ color: 'var(--color-text-muted)', fontSize: 12, marginBottom: 16 }}>
-                  Run <code>npm run backend</code> or switch to Local Webcam / Tactical Sim.
-                </p>
-                <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-                  <button 
-                    onClick={() => setBackendImageError(false)}
-                    style={{ padding: '6px 14px', backgroundColor: 'var(--color-surface-light)', border: '1px solid var(--color-accent)', color: 'var(--color-accent)', borderRadius: 4, cursor: 'pointer' }}
-                  >
-                    <RefreshCw size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} /> RETRY STREAM
-                  </button>
-                  <button 
-                    onClick={() => setStreamSource('webcam')}
-                    style={{ padding: '6px 14px', backgroundColor: 'var(--color-accent)', color: '#000', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: 'bold' }}
-                  >
-                    ENABLE LOCAL WEBCAM
-                  </button>
-                  <button 
-                    onClick={() => setStreamSource('simulated')}
-                    style={{ padding: '6px 14px', backgroundColor: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)', borderRadius: 4, cursor: 'pointer' }}
-                  >
-                    OPEN TACTICAL SIM
-                  </button>
-                </div>
+          {streamSource === 'backend' && !backendImageError && (
+            <img 
+              src={`${API_BASE_URL}/video_feed`} 
+              alt="AI Live Video Stream"
+              onError={() => setBackendImageError(true)}
+              style={{ 
+                width: '100%', 
+                height: '100%', 
+                objectFit: 'contain',
+                transform: `scale(${zoomLevel})`,
+                transition: 'transform 0.2s ease',
+                ...getVisionFilterStyle()
+              }} 
+            />
+          )}
+
+          {/* Cloud Standalone Notice Banner when Backend is Offline */}
+          {streamSource === 'backend' && backendImageError && (
+            <div style={{
+              position: 'absolute',
+              top: 50,
+              left: 16,
+              right: 16,
+              backgroundColor: 'rgba(234, 179, 8, 0.2)',
+              border: '1px solid var(--color-warning)',
+              borderRadius: 4,
+              padding: '6px 12px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              zIndex: 25,
+              fontFamily: "'Share Tech Mono', monospace",
+              fontSize: 11
+            }}>
+              <span style={{ color: 'var(--color-warning)' }}>
+                ⚡ CLOUD MODE: FastAPI backend offline — High-Res Tactical Recon Stream Engaged
+              </span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button 
+                  onClick={() => setStreamSource('webcam')} 
+                  style={{ background: 'var(--color-accent)', color: '#000', border: 'none', padding: '3px 8px', borderRadius: 3, cursor: 'pointer', fontWeight: 'bold', fontSize: 10 }}
+                >
+                  USE WEBCAM
+                </button>
+                <button 
+                  onClick={() => setBackendImageError(false)} 
+                  style={{ background: 'transparent', color: '#fff', border: '1px solid #fff', padding: '3px 8px', borderRadius: 3, cursor: 'pointer', fontSize: 10 }}
+                >
+                  RETRY
+                </button>
               </div>
-            )
+            </div>
           )}
 
           {/* 2. Direct Browser Webcam */}
@@ -511,8 +572,8 @@ export default function CameraMonitoring() {
             </div>
           )}
 
-          {/* 3. Tactical Synthetic Surveillance Mode */}
-          {streamSource === 'simulated' && (
+          {/* 3. Tactical Synthetic Surveillance Canvas Feed (Active in simulated mode OR when backend is offline) */}
+          {(streamSource === 'simulated' || (streamSource === 'backend' && backendImageError)) && (
             <canvas 
               ref={canvasRef} 
               width={800} 
@@ -761,8 +822,44 @@ export default function CameraMonitoring() {
               </div>
             </div>
 
+            {/* Interactive Threat & Siren Test Button (Ideal for testing on Vercel) */}
+            <div style={{ padding: '8px 0', borderTop: '1px solid var(--color-border)', marginTop: 8 }}>
+              <button
+                onClick={() => {
+                  const next = !simulatedThreatActive;
+                  setSimulatedThreatActive(next);
+                  if (next) {
+                    setAlertEscalated(false);
+                    tacticalSiren.startSiren();
+                  } else {
+                    tacticalSiren.stop();
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '8px 10px',
+                  backgroundColor: simulatedThreatActive ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.15)',
+                  border: `1px solid ${simulatedThreatActive ? 'var(--color-alert)' : 'var(--color-success)'}`,
+                  color: simulatedThreatActive ? 'var(--color-alert)' : 'var(--color-success)',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  fontFamily: "'Share Tech Mono', monospace",
+                  fontSize: 11,
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  marginBottom: 8
+                }}
+              >
+                <Siren size={14} className={simulatedThreatActive ? "animate-spin" : ""} />
+                {simulatedThreatActive ? 'SIMULATING THREAT (SIREN ACTIVE)' : 'SIMULATE NON-HUMAN THREAT'}
+              </button>
+            </div>
+
             {/* Operator Escalation Action */}
-            <div style={{ marginTop: 'auto', paddingTop: 14 }}>
+            <div style={{ marginTop: 'auto', paddingTop: 6 }}>
               {!alertEscalated ? (
                 <div>
                   <div style={{ backgroundColor: hasNonHumanThreat ? 'var(--color-alert)' : (hasHumanThreat ? 'var(--color-warning)' : 'rgba(245, 158, 11, 0.2)'), color: hasNonHumanThreat || hasHumanThreat ? '#fff' : 'var(--color-warning)', padding: '8px 12px', borderRadius: 4, textAlign: 'center', fontSize: 12, fontWeight: 'bold', marginBottom: 10, fontFamily: "'Share Tech Mono', monospace" }}>
