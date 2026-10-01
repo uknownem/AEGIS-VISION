@@ -69,12 +69,39 @@ export default function Personnel() {
         }
       }
     } catch {
-      // Offline mock fallback
-      setSoldierLogs([
+      // Offline fallback
+      let baseLogs: SoldierLog[] = [
         { id: 1, service_number: 'IA-948201', name: 'Subedar Vikram Singh', rank: 'Subedar', unit: '14 Corps - High Altitude Recon', action: 'LOGIN', terminal_id: 'TERMINAL-LAC-NORTH', ip_address: '10.14.2.10', status: 'AUTHORIZED', timestamp: '2026-10-01 14:15:22' },
         { id: 2, service_number: 'IA-773194', name: 'Major Rajesh Sharma', rank: 'Major', unit: '9 Para Special Forces', action: 'LOGIN', terminal_id: 'TERMINAL-HQ-ALPHA', ip_address: '10.14.1.04', status: 'AUTHORIZED', timestamp: '2026-10-01 14:20:05' },
         { id: 3, service_number: 'IA-661038', name: 'Havildar Gurpreet Singh', rank: 'Havildar', unit: 'Sikh Light Infantry', action: 'LOGIN', terminal_id: 'TERMINAL-CHECKPOINT-4', ip_address: '10.14.3.18', status: 'AUTHORIZED', timestamp: '2026-10-01 14:28:40' }
-      ]);
+      ];
+
+      // Merge newly enrolled accounts and current logged-in session
+      try {
+        const storedAccounts = localStorage.getItem('aegis_accounts');
+        if (storedAccounts) {
+          const accounts = JSON.parse(storedAccounts);
+          accounts.forEach((acc: any, idx: number) => {
+            if (!baseLogs.some(l => l.service_number.toUpperCase() === acc.serviceId.toUpperCase())) {
+              baseLogs.unshift({
+                id: 100 + idx,
+                service_number: acc.serviceId,
+                name: acc.operatorName || acc.serviceId,
+                rank: acc.rank || 'Operator',
+                unit: acc.unit || 'High Altitude Recon',
+                action: 'ENROLLED & AUTHENTICATED',
+                terminal_id: 'TERMINAL-DEFENSE-GRID',
+                ip_address: '10.14.0.88',
+                status: 'AUTHORIZED',
+                timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19)
+              });
+            }
+          });
+        }
+      } catch {}
+
+      setSoldierLogs(baseLogs);
+
       setActivities([
         { id: 1, soldier_id: 'IA-948201', soldier_name: 'Subedar Vikram Singh', rank: 'Subedar', activity_type: 'DUTY_LOGIN', details: 'Authenticated to LAC Northern Sector command terminal', terminal_id: 'TERMINAL-LAC-NORTH', timestamp: '2026-10-01 14:15:22' },
         { id: 2, soldier_id: 'IA-948201', soldier_name: 'Subedar Vikram Singh', rank: 'Subedar', activity_type: 'CAMERA_FEED_ACCESSED', details: 'Opened 4K live tactical stream for CAM-07 (LAC Northern Sector)', terminal_id: 'TERMINAL-LAC-NORTH', timestamp: '2026-10-01 14:16:05' },
