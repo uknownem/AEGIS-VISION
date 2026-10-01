@@ -612,63 +612,86 @@ export default function AlertCenter() {
                 </div>
               </div>
 
-              {/* Functional Action Buttons */}
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {/* 3 Core Functional Action Buttons: View Stream, Acknowledge, Resolve */}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                {/* 1. VIEW STREAM */}
                 <Link 
                   to={`/dashboard/camera/${alert.camera_id || 'CAM-01'}`} 
-                  className="btn-secondary" 
-                  style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', fontSize: 12 }}
+                  title={`Open live video & thermal optical stream for ${alert.camera_id || 'CAM-01'}`}
+                  style={{ 
+                    textDecoration: 'none', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 6, 
+                    padding: '7px 12px', 
+                    fontSize: 12,
+                    fontFamily: "'Share Tech Mono', monospace",
+                    fontWeight: 'bold',
+                    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                    border: '1px solid var(--color-accent)',
+                    color: 'var(--color-accent)',
+                    borderRadius: 4,
+                    transition: 'all 0.15s ease'
+                  }}
                 >
-                  <Eye size={15} /> VIEW STREAM
+                  <Eye size={14} /> VIEW STREAM
                 </Link>
 
-                {alert.status === 'ACTIVE' && (
-                  <button 
-                    onClick={() => handleAcknowledge(alert.id)}
-                    title="Acknowledge active intrusion"
-                    style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 6, 
-                      padding: '8px 14px', 
-                      fontSize: 12, 
-                      backgroundColor: 'rgba(245, 158, 11, 0.2)', 
-                      border: '1px solid var(--color-warning)', 
-                      color: 'var(--color-warning)', 
-                      borderRadius: 4, 
-                      cursor: 'pointer', 
-                      fontWeight: 'bold',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <ShieldAlert size={15} /> ACKNOWLEDGE
-                  </button>
-                )}
+                {/* 2. ACKNOWLEDGE */}
+                <button 
+                  onClick={() => handleAcknowledge(alert.id)}
+                  title="Acknowledge active incursion / threat"
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 6, 
+                    padding: '7px 12px', 
+                    fontSize: 12, 
+                    fontFamily: "'Share Tech Mono', monospace",
+                    fontWeight: 'bold',
+                    backgroundColor: alert.status === 'ACKNOWLEDGED' ? 'var(--color-warning)' : 'rgba(245, 158, 11, 0.15)', 
+                    border: '1px solid var(--color-warning)', 
+                    color: alert.status === 'ACKNOWLEDGED' ? '#000' : 'var(--color-warning)', 
+                    borderRadius: 4, 
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <ShieldAlert size={14} /> {alert.status === 'ACKNOWLEDGED' ? 'ACKNOWLEDGED' : 'ACKNOWLEDGE'}
+                </button>
 
-                {alert.status !== 'RESOLVED' ? (
-                  <button 
-                    onClick={() => handleResolve(alert.id)}
-                    className="btn-primary" 
-                    title="Resolve and close alert"
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', fontSize: 12, cursor: 'pointer', fontWeight: 'bold' }}
-                  >
-                    <CheckCircle size={15} /> RESOLVE
-                  </button>
-                ) : (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 12px', fontSize: 12, color: 'var(--color-success)', fontFamily: "'Share Tech Mono', monospace", fontWeight: 'bold' }}>
-                    <CheckCircle size={15} /> RESOLVED
-                  </span>
-                )}
+                {/* 3. RESOLVE */}
+                <button 
+                  onClick={() => handleResolve(alert.id)}
+                  title="Resolve and clear threat"
+                  style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: 6, 
+                    padding: '7px 12px', 
+                    fontSize: 12, 
+                    fontFamily: "'Share Tech Mono', monospace",
+                    fontWeight: 'bold',
+                    backgroundColor: alert.status === 'RESOLVED' ? 'var(--color-success)' : 'rgba(34, 197, 94, 0.15)', 
+                    border: '1px solid var(--color-success)', 
+                    color: alert.status === 'RESOLVED' ? '#000' : 'var(--color-success)', 
+                    borderRadius: 4, 
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <CheckCircle size={14} /> {alert.status === 'RESOLVED' ? 'RESOLVED' : 'RESOLVE'}
+                </button>
 
-                {/* Dismiss / Delete Single Alert */}
+                {/* Optional Dismiss / Delete */}
                 <button
                   onClick={() => handleDeleteAlert(alert.id)}
-                  title="Delete this alert record"
+                  title="Purge alert from database"
                   style={{
                     backgroundColor: 'transparent',
-                    border: '1px solid rgba(239, 68, 68, 0.4)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
                     color: 'var(--color-alert)',
-                    padding: '8px',
+                    padding: '7px 9px',
                     borderRadius: 4,
                     cursor: 'pointer'
                   }}
