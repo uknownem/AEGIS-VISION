@@ -356,11 +356,12 @@ export default function CameraMonitoring() {
       <div style={{ display: 'flex', gap: 20, height: 'calc(100vh - 170px)' }}>
         {/* Main Video Screen Container */}
         <div 
-          className="camera-feed" 
+          className={`camera-feed ${hasNonHumanThreat ? 'animate-pulse' : ''}`}
           style={{ 
             flex: 2.2, 
             borderRadius: 6, 
-            border: hasHumanThreat ? '2px solid var(--color-alert)' : '1px solid var(--color-border)', 
+            border: hasNonHumanThreat ? '3px solid #ef4444' : (hasHumanThreat ? '2px solid var(--color-warning)' : '1px solid var(--color-border)'), 
+            boxShadow: hasNonHumanThreat ? '0 0 35px rgba(239, 68, 68, 0.65)' : 'none',
             position: isFullScreen ? 'fixed' : 'relative', 
             top: isFullScreen ? 0 : 'auto',
             left: isFullScreen ? 0 : 'auto',
@@ -374,6 +375,33 @@ export default function CameraMonitoring() {
             justifyContent: 'center' 
           }}
         >
+          {/* Emergency Siren Visual Flasher Banner */}
+          {hasNonHumanThreat && (
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              backgroundColor: '#ef4444',
+              color: '#ffffff',
+              padding: '6px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 10,
+              fontSize: 13,
+              fontWeight: 900,
+              fontFamily: "'Share Tech Mono', monospace",
+              letterSpacing: 2,
+              zIndex: 30,
+              boxShadow: '0 4px 20px rgba(239, 68, 68, 0.8)'
+            }}>
+              <Siren size={18} className="animate-spin" />
+              NON-HUMAN OBJECT INTRUSION DETECTED // TACTICAL SIREN ACTIVE // {latestNonHuman?.class_name?.toUpperCase() || 'OBJECT'}
+              <Siren size={18} className="animate-spin" />
+            </div>
+          )}
+
           {/* Flash animation on snapshot */}
           {snapshotTaken && (
             <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(255,255,255,0.85)', zIndex: 100 }} />

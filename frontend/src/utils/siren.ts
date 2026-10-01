@@ -9,7 +9,22 @@ class TacticalSiren {
   private lfoNode: OscillatorNode | null = null;
   private lfoGain: GainNode | null = null;
 
-  private initContext() {
+  constructor() {
+    // Auto-unlock audio context on first user interaction anywhere in the window
+    if (typeof window !== 'undefined') {
+      const unlockAudio = () => {
+        this.initContext();
+        window.removeEventListener('click', unlockAudio);
+        window.removeEventListener('keydown', unlockAudio);
+        window.removeEventListener('touchstart', unlockAudio);
+      };
+      window.addEventListener('click', unlockAudio);
+      window.addEventListener('keydown', unlockAudio);
+      window.addEventListener('touchstart', unlockAudio);
+    }
+  }
+
+  public initContext() {
     if (!this.audioCtx) {
       const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioCtxClass) {
@@ -17,7 +32,7 @@ class TacticalSiren {
       }
     }
     if (this.audioCtx && this.audioCtx.state === 'suspended') {
-      this.audioCtx.resume();
+      this.audioCtx.resume().catch(() => {});
     }
   }
 
@@ -34,6 +49,7 @@ class TacticalSiren {
 
   /**
    * Starts a continuous, pitch-sweeping tactical defense siren (wail / yelp alarm)
+   * Triggered immediately when non-human objects (chargers, spoons, tools, devices, etc.) enter the screen.
    */
   public startSiren() {
     if (this.isPlaying || this.isMuted) return;
@@ -41,29 +57,33 @@ class TacticalSiren {
     if (!this.audioCtx) return;
 
     try {
+      if (this.audioCtx.state === 'suspended') {
+        this.audioCtx.resume();
+      }
+
       this.isPlaying = true;
       const now = this.audioCtx.currentTime;
 
-      // Primary siren sound oscillator (sawtooth/sine mix)
+      // Primary siren sound oscillator (sharp sawtooth alarm waveform)
       this.oscNode = this.audioCtx.createOscillator();
       this.oscNode.type = 'sawtooth';
-      this.oscNode.frequency.setValueAtTime(800, now);
+      this.oscNode.frequency.setValueAtTime(850, now);
 
-      // Low Frequency Oscillator (LFO) to modulate pitch for emergency wailing effect (600Hz to 1200Hz)
+      // Low Frequency Oscillator (LFO) to modulate pitch for emergency wailing effect (550Hz to 1350Hz sweep)
       this.lfoNode = this.audioCtx.createOscillator();
       this.lfoNode.type = 'sine';
-      this.lfoNode.frequency.setValueAtTime(1.8, now); // 1.8 Hz sweep rate
+      this.lfoNode.frequency.setValueAtTime(2.2, now); // 2.2 Hz rapid tactical sweep rate
 
       this.lfoGain = this.audioCtx.createGain();
-      this.lfoGain.gain.setValueAtTime(350, now); // Modulation depth: +/- 350Hz
+      this.lfoGain.gain.setValueAtTime(420, now); // Modulation depth: +/- 420Hz
 
       this.lfoNode.connect(this.lfoGain);
       this.lfoGain.connect(this.oscNode.frequency);
 
-      // Volume gain node
+      // Volume gain node (loud tactical alarm level)
       this.gainNode = this.audioCtx.createGain();
       this.gainNode.gain.setValueAtTime(0.01, now);
-      this.gainNode.gain.exponentialRampToValueAtTime(0.3, now + 0.1);
+      this.gainNode.gain.exponentialRampToValueAtTime(0.45, now + 0.05);
 
       this.oscNode.connect(this.gainNode);
       this.gainNode.connect(this.audioCtx.destination);
@@ -71,12 +91,12 @@ class TacticalSiren {
       this.lfoNode.start(now);
       this.oscNode.start(now);
     } catch (e) {
-      console.warn("Audio siren playback error:", e);
+      console.warn("Tactical Audio Siren playback error:", e);
     }
   }
 
   /**
-   * Plays a brief test siren pulse (1.2 seconds)
+   * Plays a brief test siren pulse (1.4 seconds)
    */
   public playTestSiren(durationMs: number = 1400) {
     this.startSiren();
@@ -126,3 +146,4 @@ class TacticalSiren {
 }
 
 export const tacticalSiren = new TacticalSiren();
+
