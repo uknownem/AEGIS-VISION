@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
   Shield, MapPin, Camera, Video, Play, CheckCircle2, 
-  Sparkles, Radio, Cpu, RefreshCw, AlertTriangle, UserPlus, LogIn
+  Sparkles, Radio, Cpu, RefreshCw, AlertTriangle, UserPlus, LogIn, Info
 } from 'lucide-react';
 import { tacticalSiren } from '../utils/siren';
 
@@ -16,6 +16,55 @@ interface MilitaryBase {
   threatLevel: 'DEFCON 1' | 'DEFCON 2' | 'DEFCON 3' | 'DEFCON 4';
   coverImage: string;
 }
+
+interface OperatorAccount {
+  serviceId: string;
+  passcode: string;
+  operatorName: string;
+  rank: string;
+  clearanceLevel: string;
+  unit: string;
+  phone?: string;
+}
+
+const DEFAULT_ACCOUNTS: OperatorAccount[] = [
+  {
+    serviceId: 'IA-948201',
+    passcode: 'aegis2026',
+    operatorName: 'Subedar Vikram Singh',
+    rank: 'Subedar',
+    clearanceLevel: 'LEVEL-5 TOP SECRET (COSMIC)',
+    unit: '14 Corps - High Altitude Recon',
+    phone: '+91 98765-43210'
+  },
+  {
+    serviceId: 'IA-773194',
+    passcode: 'aegis2026',
+    operatorName: 'Major Rajesh Sharma',
+    rank: 'Major',
+    clearanceLevel: 'LEVEL-5 TOP SECRET (COSMIC)',
+    unit: '9 Para Special Forces',
+    phone: '+91 98765-43211'
+  },
+  {
+    serviceId: 'IA-661038',
+    passcode: 'aegis2026',
+    operatorName: 'Havildar Gurpreet Singh',
+    rank: 'Havildar',
+    clearanceLevel: 'LEVEL-4 SECRET (OPERATIONAL)',
+    unit: 'Sikh Light Infantry',
+    phone: '+91 98765-43212'
+  },
+  {
+    serviceId: 'ADMIN',
+    passcode: 'admin123',
+    operatorName: 'Commander Alex Vance',
+    rank: 'Commander',
+    clearanceLevel: 'LEVEL-5 TOP SECRET (COSMIC)',
+    unit: 'Integrated Defense Command',
+    phone: '+91 98765-00000'
+  }
+];
 
 const MILITARY_BASES: MilitaryBase[] = [
   {
@@ -79,14 +128,14 @@ export default function Login() {
   // Sign In Credentials State
   const [serviceId, setServiceId] = useState('IA-948201');
   const [operatorName, setOperatorName] = useState('Subedar Vikram Singh');
-  const [passcode, setPasscode] = useState('••••••••••');
+  const [passcode, setPasscode] = useState('aegis2026');
   const [clearanceLevel, setClearanceLevel] = useState('LEVEL-5 TOP SECRET (COSMIC)');
   
   // Sign Up / Register Fields
   const [regUnit, setRegUnit] = useState('14 Corps - High Altitude Recon');
   const [regRank, setRegRank] = useState('Subedar');
   const [regPhone, setRegPhone] = useState('+91 98765-43210');
-  const [confirmPasscode, setConfirmPasscode] = useState('••••••••••');
+  const [confirmPasscode, setConfirmPasscode] = useState('aegis2026');
 
   const [authError, setAuthError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -107,15 +156,21 @@ export default function Login() {
   // Active step inside setup
   const [activeStep, setActiveStep] = useState<'CREDENTIALS' | 'LOCATION' | 'CAMERAS'>('CREDENTIALS');
 
-  // Load Saved Credentials on Component Mount
+  // Initialize and Load Saved Credentials on Component Mount
   useEffect(() => {
     try {
+      // Ensure default accounts exist in localStorage
+      const existingAccounts = localStorage.getItem('aegis_accounts');
+      if (!existingAccounts) {
+        localStorage.setItem('aegis_accounts', JSON.stringify(DEFAULT_ACCOUNTS));
+      }
+
       const saved = localStorage.getItem('aegis_saved_credentials') || localStorage.getItem('aegis_session');
       if (saved) {
         const data = JSON.parse(saved);
         if (data.serviceId) setServiceId(data.serviceId);
         if (data.operatorName) {
-          const rawName = data.operatorName.replace(/^(Subedar Major|Subedar|Major|Colonel|Captain|Havildar)\s+/i, '');
+          const rawName = data.operatorName.replace(/^(Subedar Major|Subedar|Major|Colonel|Captain|Havildar|Commander)\s+/i, '');
           setOperatorName(rawName);
         }
         if (data.passcode) {
@@ -176,61 +231,152 @@ export default function Login() {
     };
   }, [webcamStream]);
 
+  // Helper to fetch all registered accounts
+  const getAllAccounts = (): OperatorAccount[] => {
+    try {
+      const stored = localStorage.getItem('aegis_accounts');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Merge with DEFAULT_ACCOUNTS avoiding duplicate serviceIds
+          const map = new Map<string, OperatorAccount>();
+          DEFAULT_ACCOUNTS.forEach(a => map.set(a.serviceId.toUpperCase(), a));
+          parsed.forEach((a: OperatorAccount) => map.set(a.serviceId.toUpperCase(), a));
+          return Array.from(map.values());
+        }
+      }
+    } catch {}
+    return DEFAULT_ACCOUNTS;
+  };
+
   const handleAuthSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setAuthError('');
     setSuccessMsg('');
 
-    if (!serviceId.trim()) {
-      setAuthError('Please enter your Military Service ID / Army Number');
+    const trimmedId = serviceId.trim().toUpperCase();
+    const trimmedPass = passcode.trim();
+
+    if (!trimmedId) {
+      setAuthError('🚨 ACCESS REJECTED: Please enter your Military Service ID / Army Number.');
       return;
     }
 
+    if (!trimmedPass) {
+      setAuthError('🚨 ACCESS REJECTED: Please enter your military security passcode.');
+      return;
+    }
+
+    const allAccounts = getAllAccounts();
+
+    // 1. SIGN IN FLOW: STRICT CREDENTIAL VALIDATION
+    if (authMode === 'SIGN_IN') {
+      const account = allAccounts.find(acc => acc.serviceId.toUpperCase() === trimmedId);
+
+      // If user does not exist in authorized directory
+      if (!account) {
+        setAuthError(`🚨 ACCESS DENIED: Service ID "${trimmedId}" is not registered in the military defense database. Please verify your ID or click "SIGN UP" to register.`);
+        return;
+      }
+
+      // If passcode does not match
+      if (account.passcode !== trimmedPass) {
+        setAuthError(`🚨 ACCESS DENIED: Invalid passcode for operator "${trimmedId}". Terminal authorization rejected.`);
+        return;
+      }
+
+      // Credentials are valid!
+      const sessionData = {
+        serviceId: account.serviceId,
+        operatorName: account.operatorName,
+        passcode: account.passcode,
+        clearanceLevel: account.clearanceLevel || clearanceLevel,
+        unit: account.unit || regUnit,
+        rank: account.rank || regRank,
+        phone: account.phone || regPhone,
+        base: selectedBase,
+        webcamEnabled,
+        ipCameraUrl,
+        backendStreamEnabled,
+        loginTimestamp: new Date().toISOString()
+      };
+
+      // Persist active session
+      localStorage.setItem('aegis_session', JSON.stringify(sessionData));
+
+      if (rememberCredentials) {
+        localStorage.setItem('aegis_saved_credentials', JSON.stringify(sessionData));
+      }
+
+      tacticalSiren.initContext();
+      setSuccessMsg(`✅ CREDENTIALS VERIFIED. WELCOME, ${account.rank.toUpperCase()} ${account.operatorName.toUpperCase()}. ACCESSING DEFENSE GRID...`);
+
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 600);
+      return;
+    }
+
+    // 2. SIGN UP / REGISTRATION FLOW
     if (authMode === 'SIGN_UP') {
       if (!operatorName.trim()) {
-        setAuthError('Please enter your full name and designation');
+        setAuthError('🚨 REGISTRATION ERROR: Please enter operator full name and designation.');
         return;
       }
-      if (passcode !== confirmPasscode) {
-        setAuthError('Passcode and confirmation passcode do not match');
+
+      if (trimmedPass !== confirmPasscode.trim()) {
+        setAuthError('🚨 REGISTRATION ERROR: Passcode and confirmation passcode do not match.');
         return;
       }
+
+      if (trimmedPass.length < 4) {
+        setAuthError('🚨 REGISTRATION ERROR: Passcode must be at least 4 characters long.');
+        return;
+      }
+
+      // Check if already registered
+      const existing = allAccounts.find(acc => acc.serviceId.toUpperCase() === trimmedId);
+      if (existing) {
+        setAuthError(`⚠️ REGISTRATION NOTICE: Service ID "${trimmedId}" is already registered. Please switch to SIGN IN.`);
+        return;
+      }
+
+      // Register new account
+      const newAccount: OperatorAccount = {
+        serviceId: trimmedId,
+        passcode: trimmedPass,
+        operatorName: `${regRank} ${operatorName.trim()}`,
+        rank: regRank,
+        clearanceLevel,
+        unit: regUnit,
+        phone: regPhone
+      };
+
+      const updatedAccounts = [...allAccounts, newAccount];
+      localStorage.setItem('aegis_accounts', JSON.stringify(updatedAccounts));
+
+      const sessionData = {
+        ...newAccount,
+        base: selectedBase,
+        webcamEnabled,
+        ipCameraUrl,
+        backendStreamEnabled,
+        loginTimestamp: new Date().toISOString()
+      };
+
+      localStorage.setItem('aegis_session', JSON.stringify(sessionData));
+
+      if (rememberCredentials) {
+        localStorage.setItem('aegis_saved_credentials', JSON.stringify(sessionData));
+      }
+
+      tacticalSiren.initContext();
+      setSuccessMsg(`✅ OPERATOR ENROLLED & REGISTERED. ACCESSING DEFENSE GRID...`);
+
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 600);
     }
-
-    const finalOperatorName = authMode === 'SIGN_IN' ? (operatorName || 'Subedar Vikram Singh') : `${regRank} ${operatorName}`;
-
-    // Save operator session to localStorage
-    const sessionData = {
-      serviceId,
-      operatorName: finalOperatorName,
-      passcode,
-      clearanceLevel,
-      unit: regUnit,
-      rank: regRank,
-      phone: regPhone,
-      base: selectedBase,
-      webcamEnabled,
-      ipCameraUrl,
-      backendStreamEnabled,
-      loginTimestamp: new Date().toISOString()
-    };
-    
-    // Always persist active session
-    localStorage.setItem('aegis_session', JSON.stringify(sessionData));
-
-    // If Remember Credentials is checked, persist permanent credentials
-    if (rememberCredentials) {
-      localStorage.setItem('aegis_saved_credentials', JSON.stringify(sessionData));
-    }
-
-    // Unlock audio context for immediate siren readiness
-    tacticalSiren.initContext();
-
-    setSuccessMsg(authMode === 'SIGN_IN' ? 'AUTHENTICATION VERIFIED. ACCESSING DEFENSE GRID...' : 'NEW OPERATOR REGISTERED & ENROLLED.');
-    
-    setTimeout(() => {
-      navigate('/dashboard');
-    }, 600);
   };
 
   return (
@@ -464,25 +610,28 @@ export default function Login() {
 
           {authError && (
             <div style={{
-              padding: '8px 12px',
-              backgroundColor: 'rgba(239, 68, 68, 0.2)',
+              padding: '10px 12px',
+              backgroundColor: 'rgba(239, 68, 68, 0.25)',
               border: '1px solid var(--color-alert)',
               color: 'var(--color-alert)',
               borderRadius: 4,
               marginBottom: 14,
               fontSize: 12,
+              lineHeight: 1.4,
               display: 'flex',
-              alignItems: 'center',
-              gap: 8
+              alignItems: 'flex-start',
+              gap: 8,
+              boxShadow: '0 0 15px rgba(239, 68, 68, 0.3)'
             }}>
-              <AlertTriangle size={15} /> {authError}
+              <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+              <div>{authError}</div>
             </div>
           )}
 
           {successMsg && (
             <div style={{
-              padding: '8px 12px',
-              backgroundColor: 'rgba(34, 197, 94, 0.2)',
+              padding: '10px 12px',
+              backgroundColor: 'rgba(34, 197, 94, 0.25)',
               border: '1px solid var(--color-success)',
               color: 'var(--color-success)',
               borderRadius: 4,
@@ -492,21 +641,21 @@ export default function Login() {
               alignItems: 'center',
               gap: 8
             }}>
-              <CheckCircle2 size={15} /> {successMsg}
+              <CheckCircle2 size={16} /> {successMsg}
             </div>
           )}
 
           <form onSubmit={handleAuthSubmit} style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             {/* STEP 1: CREDENTIALS (SIGN IN OR SIGN UP) */}
             {activeStep === 'CREDENTIALS' && (
-              <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1 }}>
+              <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 13, flex: 1 }}>
                 <div>
                   <h3 style={{ margin: '0 0 4px 0', fontSize: 15, color: 'var(--color-accent)' }}>
                     {authMode === 'SIGN_IN' ? 'OPERATOR SIGN IN' : 'NEW OPERATOR ENROLLMENT'}
                   </h3>
                   <p style={{ margin: 0, fontSize: 11, color: 'var(--color-text-muted)' }}>
                     {authMode === 'SIGN_IN' 
-                      ? 'Authenticate your military service ID to access the perimeter defense grid.' 
+                      ? 'Authenticate your military service ID & security passcode to access the defense grid.' 
                       : 'Enroll new defense personnel credentials and security clearance level.'}
                   </p>
                 </div>
@@ -521,6 +670,7 @@ export default function Login() {
                     value={serviceId}
                     onChange={(e) => setServiceId(e.target.value)}
                     placeholder="e.g. IA-948201 or OP-773194"
+                    required
                     style={{
                       width: '100%',
                       padding: '9px 12px',
@@ -549,6 +699,7 @@ export default function Login() {
                           value={operatorName}
                           onChange={(e) => setOperatorName(e.target.value)}
                           placeholder="e.g. Vikram Singh"
+                          required
                           style={{
                             width: '100%',
                             padding: '9px 12px',
@@ -698,17 +849,18 @@ export default function Login() {
                   </select>
                 </div>
 
-                {/* Passcode */}
+                {/* Passcode Input */}
                 <div style={{ display: 'grid', gridTemplateColumns: authMode === 'SIGN_UP' ? '1fr 1fr' : '1fr', gap: 10 }}>
                   <div>
                     <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
-                      ENCRYPTED PASSCODE / KEY
+                      MILITARY SECURITY PASSCODE
                     </label>
                     <input
                       type="password"
                       value={passcode}
                       onChange={(e) => setPasscode(e.target.value)}
-                      placeholder="Passcode"
+                      placeholder="e.g. aegis2026"
+                      required
                       style={{
                         width: '100%',
                         padding: '9px 12px',
@@ -733,6 +885,7 @@ export default function Login() {
                         value={confirmPasscode}
                         onChange={(e) => setConfirmPasscode(e.target.value)}
                         placeholder="Confirm Passcode"
+                        required
                         style={{
                           width: '100%',
                           padding: '9px 12px',
@@ -749,6 +902,26 @@ export default function Login() {
                     </div>
                   )}
                 </div>
+
+                {/* Default Credentials Hint Pill */}
+                {authMode === 'SIGN_IN' && (
+                  <div style={{
+                    padding: '6px 10px',
+                    backgroundColor: 'rgba(34, 197, 94, 0.08)',
+                    border: '1px dashed rgba(34, 197, 94, 0.3)',
+                    borderRadius: 4,
+                    fontSize: 10,
+                    color: 'var(--color-text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}>
+                    <Info size={13} color="var(--color-accent)" />
+                    <span>
+                      DEMO OPERATOR: ID <strong>IA-948201</strong> &bull; Passcode: <strong>aegis2026</strong> (or Sign Up to register your own)
+                    </span>
+                  </div>
+                )}
 
                 {/* Remember Credentials Option & Status Banner */}
                 <div style={{
