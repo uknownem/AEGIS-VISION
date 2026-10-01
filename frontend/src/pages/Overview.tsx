@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { mockCameras } from '../mockData';
-import { Video, Thermometer, ShieldAlert, AlertTriangle, Eye, Activity } from 'lucide-react';
+import { Video, Thermometer, ShieldAlert, AlertTriangle, Activity } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import CameraThumbnail from '../components/CameraThumbnail';
 
 export default function Overview() {
   const [backendAlive, setBackendAlive] = useState(false);
@@ -93,8 +94,8 @@ export default function Overview() {
                 </div>
               </div>
 
-              {/* Video Preview Box */}
-              <div style={{ height: 210, backgroundColor: '#060907', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+              {/* Video Preview Box using CameraThumbnail */}
+              <div style={{ height: 210, backgroundColor: '#060907', position: 'relative', overflow: 'hidden' }}>
                 {cam.status === 'live' ? (
                   idx === 0 && backendAlive ? (
                     <img 
@@ -104,22 +105,19 @@ export default function Overview() {
                       onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                     />
                   ) : (
-                    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative', background: 'radial-gradient(circle at center, #0f1c13 0%, #060907 80%)' }}>
-                      {/* Radar sweep lines */}
-                      <div style={{ position: 'absolute', width: '100%', height: '100%', backgroundImage: 'linear-gradient(rgba(34, 197, 94, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(34, 197, 94, 0.05) 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
-                      <div style={{ zIndex: 2, textAlign: 'center' }}>
-                        <Eye size={28} color="var(--color-accent)" style={{ marginBottom: 6, opacity: 0.8 }} />
-                        <p style={{ color: 'var(--color-text)', letterSpacing: 1.5, fontSize: 11, fontFamily: "'Share Tech Mono', monospace", fontWeight: 'bold' }}>
-                          TACTICAL SENSOR ACTIVE
-                        </p>
-                        <span style={{ fontSize: 10, color: 'var(--color-success)', fontFamily: "'Share Tech Mono', monospace" }}>
-                          YOLOv8 DETECT: 30 FPS
-                        </span>
-                      </div>
-                    </div>
+                    <CameraThumbnail 
+                      camId={cam.id}
+                      zone={cam.zone}
+                      isThermal={cam.type.toLowerCase().includes('thermal') || cam.type.toLowerCase().includes('flir')}
+                      imageSrc={idx === 1 || cam.zone.toLowerCase().includes('north') ? '/cctv_himalayan_feed.jpg' : undefined}
+                      hasDetection={idx === 0 || idx === 1}
+                      hasNonHumanThreat={idx === 1}
+                      nonHumanObject="Armored BMP / Tank"
+                      fps={29.8}
+                    />
                   )
                 ) : (
-                  <div style={{ textAlign: 'center', padding: 20 }}>
+                  <div style={{ textAlign: 'center', padding: 20, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                     <span style={{ color: 'var(--color-alert)', letterSpacing: 1.5, fontSize: 12, fontFamily: "'Share Tech Mono', monospace", fontWeight: 'bold' }}>
                       [ SIGNAL OFFLINE ]
                     </span>
@@ -127,12 +125,7 @@ export default function Overview() {
                   </div>
                 )}
 
-                {/* Badges Over Video Preview */}
-                <div style={{ position: 'absolute', top: 10, left: 10, fontSize: 11, color: '#fff', backgroundColor: 'rgba(0,0,0,0.7)', padding: '2px 8px', borderRadius: 3, border: '1px solid var(--color-border)', fontFamily: "'Share Tech Mono', monospace" }}>
-                  {cam.type}
-                </div>
-
-                <div style={{ position: 'absolute', bottom: 10, right: 10, fontSize: 11, color: 'var(--color-accent)', backgroundColor: 'rgba(0,0,0,0.7)', padding: '2px 8px', borderRadius: 3, border: '1px solid var(--color-border)', fontFamily: "'Share Tech Mono', monospace" }}>
+                <div style={{ position: 'absolute', bottom: 10, right: 10, fontSize: 11, color: 'var(--color-accent)', backgroundColor: 'rgba(0,0,0,0.75)', padding: '2px 8px', borderRadius: 3, border: '1px solid var(--color-border)', fontFamily: "'Share Tech Mono', monospace", zIndex: 10 }}>
                   CLICK TO VIEW STREAM &rarr;
                 </div>
               </div>

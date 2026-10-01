@@ -1,24 +1,103 @@
-// High-fidelity Tactical Camera and Thermal Feed Renderer
+// High-fidelity Tactical Camera, Himalayan CCTV, and Thermal Feed Renderer
+import { Siren } from 'lucide-react';
 
 interface Props {
   isThermal?: boolean;
+  isNvg?: boolean;
   hasDetection?: boolean;
+  hasNonHumanThreat?: boolean;
+  nonHumanObject?: string;
+  imageSrc?: string;
   resolution?: string;
   fps?: number;
   camId?: string;
+  zone?: string;
   timestamp?: string;
 }
 
 export default function CameraThumbnail({
   isThermal = false,
+  isNvg = false,
   hasDetection = false,
+  hasNonHumanThreat = false,
+  nonHumanObject = 'OBJECT',
+  imageSrc,
   resolution = '4K UltraHD',
-  fps = 30
+  fps = 30,
+  camId,
+  zone
 }: Props) {
+  // 1. Direct Image Source (e.g. Himalayan Border CCTV Feed or backend snapshot)
+  if (imageSrc) {
+    return (
+      <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: 180, overflow: 'hidden', backgroundColor: '#050705' }}>
+        <img 
+          src={imageSrc} 
+          alt={camId || "CCTV Feed"} 
+          style={{ 
+            width: '100%', 
+            height: '100%', 
+            objectFit: 'cover',
+            filter: isThermal ? 'hue-rotate(280deg) saturate(2.5)' : (isNvg ? 'sepia(1) hue-rotate(85deg) saturate(3)' : 'none')
+          }} 
+        />
+
+        {/* Scanlines effect overlay */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%)',
+          backgroundSize: '100% 4px',
+          pointerEvents: 'none'
+        }} />
+
+        {/* Top Badges */}
+        <div style={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 6, zIndex: 3 }}>
+          <span style={{ backgroundColor: 'rgba(0,0,0,0.75)', padding: '2px 8px', borderRadius: 2, color: 'var(--color-accent)', fontSize: 10, border: '1px solid var(--color-border)', fontFamily: "'Share Tech Mono', monospace" }}>
+            ● {camId ? `${camId} // ${resolution}` : resolution}
+          </span>
+          {zone && (
+            <span style={{ backgroundColor: 'rgba(0,0,0,0.75)', padding: '2px 8px', borderRadius: 2, color: '#94a3b8', fontSize: 10, border: '1px solid var(--color-border)', fontFamily: "'Share Tech Mono', monospace" }}>
+              {zone}
+            </span>
+          )}
+        </div>
+
+        {/* Non-Human Threat Siren Flasher */}
+        {hasNonHumanThreat && (
+          <div style={{
+            position: 'absolute',
+            bottom: 26,
+            left: 8,
+            backgroundColor: '#ef4444',
+            color: '#ffffff',
+            padding: '3px 8px',
+            borderRadius: 2,
+            fontSize: 10,
+            fontWeight: 'bold',
+            fontFamily: "'Share Tech Mono', monospace",
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            boxShadow: '0 0 12px rgba(239, 68, 68, 0.8)',
+            zIndex: 4
+          }}>
+            <Siren size={12} /> NON-HUMAN: {nonHumanObject.toUpperCase()} // SIREN
+          </div>
+        )}
+
+        {/* Bottom Right FPS */}
+        <div style={{ position: 'absolute', bottom: 6, right: 8, backgroundColor: 'rgba(0,0,0,0.75)', padding: '2px 8px', borderRadius: 2, color: 'var(--color-accent)', fontSize: 10, fontFamily: "'Share Tech Mono', monospace" }}>
+          {fps} FPS
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Thermal FLIR Ironbow Canvas/SVG rendering
   if (isThermal) {
     return (
       <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: 140, overflow: 'hidden', backgroundColor: '#070014' }}>
-        {/* Thermal FLIR Ironbow Canvas/SVG rendering */}
         <svg viewBox="0 0 400 220" style={{ width: '100%', height: '100%', display: 'block' }}>
           <defs>
             <linearGradient id="thermalSky" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -70,7 +149,6 @@ export default function CameraThumbnail({
           {/* Thermal Human Figure Heat Signature */}
           <g transform="translate(135, 120)">
             <ellipse cx="10" cy="10" rx="14" ry="24" fill="url(#humanHeat)" />
-            {/* Person silhouette in white/yellow */}
             <circle cx="10" cy="0" r="4" fill="#ffffff" />
             <line x1="10" y1="4" x2="10" y2="20" stroke="#ffea00" strokeWidth="4" strokeLinecap="round" />
             <line x1="10" y1="20" x2="6" y2="34" stroke="#ff5500" strokeWidth="3" strokeLinecap="round" />
@@ -81,7 +159,6 @@ export default function CameraThumbnail({
           {/* Thermal Vehicle Heat Signature */}
           <g transform="translate(210, 110)">
             <ellipse cx="40" cy="25" rx="55" ry="30" fill="url(#vehicleEngineHeat)" />
-            {/* Truck chassis heat */}
             <path d="M5,35 L15,15 L50,15 L70,25 L75,35 Z" fill="#ff7700" opacity="0.9" />
             <rect x="18" y="18" width="18" height="12" fill="#ffea00" />
             <circle cx="20" cy="38" r="8" fill="#ffffff" />
@@ -111,7 +188,7 @@ export default function CameraThumbnail({
     );
   }
 
-  // Optical Day / Perimeter Camera View
+  // 3. Optical Day / Perimeter Camera View
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: 140, overflow: 'hidden', backgroundColor: '#9aa0a6' }}>
       <svg viewBox="0 0 400 220" style={{ width: '100%', height: '100%', display: 'block' }}>
@@ -149,10 +226,8 @@ export default function CameraThumbnail({
 
         {/* Perimeter Chainlink Fence with Barbed Wire */}
         <g stroke="#6c757d" strokeWidth="1.2" opacity="0.85">
-          {/* Main Diagonal Fence Mesh */}
           <line x1="0" y1="120" x2="400" y2="155" strokeWidth="2" stroke="#495057" />
           <line x1="0" y1="180" x2="400" y2="215" strokeWidth="2" stroke="#495057" />
-          {/* Vertical concrete posts */}
           <line x1="30" y1="110" x2="30" y2="190" strokeWidth="3" stroke="#343a40" />
           <line x1="110" y1="117" x2="110" y2="197" strokeWidth="3" stroke="#343a40" />
           <line x1="190" y1="124" x2="190" y2="204" strokeWidth="3" stroke="#343a40" />
@@ -199,3 +274,4 @@ export default function CameraThumbnail({
     </div>
   );
 }
+
