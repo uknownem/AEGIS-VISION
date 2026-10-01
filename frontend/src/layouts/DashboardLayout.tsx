@@ -3,7 +3,7 @@ import { Outlet, NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, Video, Map, Bell, Users, BarChart3, Activity, 
   Settings, Crosshair, MapPin, Clock, X, Shield, Key, Volume2, 
-  CheckCircle2, Save
+  CheckCircle2, Save, Sparkles
 } from 'lucide-react';
 import { tacticalSiren } from '../utils/siren';
 
@@ -23,18 +23,38 @@ export default function DashboardLayout() {
   const [visualStrobe, setVisualStrobe] = useState(true);
   const [settingsSaved, setSettingsSaved] = useState(false);
 
-  // Operator Credentials State (Displayed when clicking SETUP)
+  // Operator Credentials State (read from localStorage or default)
   const [operator, setOperator] = useState({
-    name: 'Subedar Major Alex Vance',
-    id: 'TS-001-ALPHA',
+    name: 'Subedar Vikram Singh',
+    id: 'IA-948201',
     role: 'Defense Operations Chief',
     clearance: 'LEVEL-5 TOP SECRET (COSMIC)',
-    sector: 'LAC North - Himalayan Command',
+    sector: 'LAC Northern Sector (Eastern Ladakh)',
+    coordinates: '34.2268° N, 77.5619° E',
     biometricKey: '0x88F92-IND-ARMY-SECURE',
     phone: '+91 98765-43210'
   });
   const [editingCreds, setEditingCreds] = useState(false);
   const [savedCredsMsg, setSavedCredsMsg] = useState(false);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('aegis_session');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.operatorName || parsed.serviceId || parsed.base) {
+          setOperator(prev => ({
+            ...prev,
+            name: parsed.operatorName || prev.name,
+            id: parsed.serviceId || prev.id,
+            clearance: parsed.clearanceLevel || prev.clearance,
+            sector: parsed.base?.name || prev.sector,
+            coordinates: parsed.base?.coordinates || prev.coordinates
+          }));
+        }
+      }
+    } catch {}
+  }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -127,15 +147,36 @@ export default function DashboardLayout() {
             </span>
           </div>
           
-          <div style={{ display: 'flex', gap: 30, color: 'var(--color-text-muted)' }}>
+          <div style={{ display: 'flex', gap: 24, color: 'var(--color-text-muted)' }}>
             <NavLink to="/dashboard" end style={({ isActive }) => ({ textDecoration: 'none', color: isActive ? 'var(--color-accent)' : 'inherit', borderBottom: isActive ? '2px solid var(--color-accent)' : 'none', paddingBottom: 5 })}>
               OVERVIEW
+            </NavLink>
+            <NavLink to="/dashboard/cameras" style={({ isActive }) => ({ textDecoration: 'none', color: isActive ? 'var(--color-accent)' : 'inherit', borderBottom: isActive ? '2px solid var(--color-accent)' : 'none', paddingBottom: 5 })}>
+              CAMERAS
             </NavLink>
             <NavLink to="/dashboard/zones" style={({ isActive }) => ({ textDecoration: 'none', color: isActive ? 'var(--color-accent)' : 'inherit', borderBottom: isActive ? '2px solid var(--color-accent)' : 'none', paddingBottom: 5 })}>
               UNIT MAP
             </NavLink>
             
-            {/* SETUP Button: Opens In-Dashboard Credentials & Base Config Modal instead of landing page */}
+            {/* Interactive Demo Mode Shortcut */}
+            <NavLink 
+              to="/demo" 
+              style={{
+                textDecoration: 'none',
+                color: 'var(--color-warning)',
+                paddingBottom: 5,
+                fontSize: 13,
+                fontWeight: 'bold',
+                letterSpacing: 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5
+              }}
+            >
+              <Sparkles size={14} /> DEMO MODE
+            </NavLink>
+
+            {/* SETUP Button */}
             <button 
               onClick={() => setShowSetupModal(true)}
               style={{
@@ -150,13 +191,31 @@ export default function DashboardLayout() {
                 letterSpacing: 1
               }}
             >
-              SETUP / CREDENTIALS
+              CREDENTIALS
             </button>
+
+            {/* Switch Base / Login */}
+            <NavLink 
+              to="/login" 
+              style={{
+                textDecoration: 'none',
+                color: 'var(--color-text-muted)',
+                paddingBottom: 5,
+                fontSize: 13,
+                letterSpacing: 1
+              }}
+            >
+              SWITCH BASE / LOGOUT
+            </NavLink>
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: 20, fontSize: 12, color: 'var(--color-text-muted)', fontFamily: "'Share Tech Mono', monospace" }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><MapPin size={14} /> NEW DELHI / LAC SECTOR</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><Clock size={14} /> {timeStr}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 11, color: 'var(--color-text-muted)', fontFamily: "'Share Tech Mono', monospace" }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'var(--color-accent)' }}>
+              <MapPin size={13} /> {operator.sector.length > 25 ? operator.sector.substring(0, 25) + '...' : operator.sector}
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Clock size={13} /> {timeStr}
+            </span>
           </div>
         </div>
         
