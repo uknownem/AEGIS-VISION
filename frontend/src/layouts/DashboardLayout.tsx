@@ -13,6 +13,7 @@ export default function DashboardLayout() {
   // Modals state
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showSetupModal, setShowSetupModal] = useState(false);
+  const [showCreditsModal, setShowCreditsModal] = useState(false);
 
   // Settings State
   const [defconLevel, setDefconLevel] = useState('DEFCON 2');
@@ -63,7 +64,27 @@ export default function DashboardLayout() {
     <div className="app-container">
       {/* Icon-only Sidebar */}
       <div className="sidebar">
-        <Crosshair size={24} color="var(--color-accent)" style={{ marginBottom: 20 }} />
+        <button
+          onClick={() => setShowCreditsModal(true)}
+          title="System Architecture & Developer Credits (PIXEL PIONEERS)"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
+            marginBottom: 20,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'transform 0.2s',
+            outline: 'none'
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.15)')}
+          onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+        >
+          <Crosshair size={24} color="var(--color-accent)" className="animate-pulse" />
+        </button>
+
         <NavLink to="/dashboard" end title="Overview"><LayoutDashboard size={18} /></NavLink>
         <NavLink to="/dashboard/cameras" title="Cameras"><Video size={18} /></NavLink>
         <NavLink to="/dashboard/zones" title="Zones"><Map size={18} /></NavLink>
@@ -391,6 +412,94 @@ export default function DashboardLayout() {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* --- 3. TOP-LEFT AIM BUTTON: 'DEVELOPED BY PIXEL PIONEERS' POPUP MODAL --- */}
+      {showCreditsModal && (
+        <div 
+          onClick={() => setShowCreditsModal(false)}
+          style={{ 
+            position: 'fixed', 
+            inset: 0, 
+            backgroundColor: 'rgba(0,0,0,0.88)', 
+            zIndex: 10001, 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            padding: 20,
+            backdropFilter: 'blur(4px)'
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="card animate-fade-in" 
+            style={{ 
+              maxWidth: 440, 
+              width: '100%', 
+              borderColor: 'var(--color-accent)', 
+              boxShadow: '0 0 45px rgba(163, 230, 53, 0.4)',
+              textAlign: 'center',
+              padding: '30px 24px',
+              position: 'relative'
+            }}
+          >
+            <button 
+              onClick={() => setShowCreditsModal(false)}
+              style={{ position: 'absolute', top: 14, right: 14, background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}
+            >
+              <X size={20} />
+            </button>
+
+            {/* Glowing Tactical Reticle Icon */}
+            <div style={{ 
+              width: 64, 
+              height: 64, 
+              borderRadius: '50%', 
+              backgroundColor: 'rgba(163, 230, 53, 0.15)', 
+              border: '2px solid var(--color-accent)', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              margin: '0 auto 16px auto',
+              boxShadow: '0 0 25px rgba(163, 230, 53, 0.5)'
+            }}>
+              <Crosshair size={34} color="var(--color-accent)" className="animate-spin" />
+            </div>
+
+            {/* Main Required Message */}
+            <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontFamily: "'Share Tech Mono', monospace", letterSpacing: 2, display: 'block', marginBottom: 4 }}>
+              SYSTEM ARCHITECTURE & DESIGN
+            </span>
+
+            <h2 style={{ color: 'var(--color-accent)', fontSize: 24, letterSpacing: 2, margin: '6px 0 12px 0' }}>
+              DEVELOPED BY PIXEL PIONEERS
+            </h2>
+
+            <p style={{ color: 'var(--color-text)', fontSize: 13, lineHeight: 1.5, fontFamily: "'Share Tech Mono', monospace", marginBottom: 20 }}>
+              Autonomous Tactical Defense Vision Grid, Real-Time YOLOv8 Object Detection & Perimeter Intelligence System.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
+              <span className="badge" style={{ backgroundColor: 'rgba(163, 230, 53, 0.2)', color: 'var(--color-accent)', fontSize: 10 }}>
+                AEGIS-VISION v2.4
+              </span>
+              <span className="badge" style={{ backgroundColor: 'rgba(34, 197, 94, 0.2)', color: 'var(--color-success)', fontSize: 10 }}>
+                PIXEL PIONEERS
+              </span>
+              <span className="badge" style={{ backgroundColor: 'rgba(239, 68, 68, 0.2)', color: 'var(--color-alert)', fontSize: 10 }}>
+                DEFENSE SECURE
+              </span>
+            </div>
+
+            <button 
+              onClick={() => setShowCreditsModal(false)} 
+              className="btn-primary" 
+              style={{ width: '100%', padding: '10px 0', fontSize: 12, fontWeight: 'bold' }}
+            >
+              CLOSE WINDOW
+            </button>
           </div>
         </div>
       )}
