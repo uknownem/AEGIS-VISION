@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
   Shield, MapPin, Camera, Video, Play, CheckCircle2, 
-  Sparkles, Radio, Cpu, RefreshCw, AlertTriangle
+  Sparkles, Radio, Cpu, RefreshCw, AlertTriangle, UserPlus, LogIn
 } from 'lucide-react';
 import { tacticalSiren } from '../utils/siren';
 
@@ -73,12 +73,23 @@ const MILITARY_BASES: MilitaryBase[] = [
 export default function Login() {
   const navigate = useNavigate();
 
-  // Authentication Credentials State
+  // Auth Mode: Sign In (Existing Operator) vs Sign Up (Register New Operator)
+  const [authMode, setAuthMode] = useState<'SIGN_IN' | 'SIGN_UP'>('SIGN_IN');
+
+  // Sign In Credentials State
   const [serviceId, setServiceId] = useState('IA-948201');
   const [operatorName, setOperatorName] = useState('Subedar Vikram Singh');
   const [passcode, setPasscode] = useState('••••••••••');
   const [clearanceLevel, setClearanceLevel] = useState('LEVEL-5 TOP SECRET (COSMIC)');
+  
+  // Sign Up / Register Fields
+  const [regUnit, setRegUnit] = useState('14 Corps - High Altitude Recon');
+  const [regRank, setRegRank] = useState('Subedar');
+  const [regPhone, setRegPhone] = useState('+91 98765-43210');
+  const [confirmPasscode, setConfirmPasscode] = useState('••••••••••');
+
   const [authError, setAuthError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   // Selected Military Base Location
   const [selectedBase, setSelectedBase] = useState<MilitaryBase>(MILITARY_BASES[0]);
@@ -91,14 +102,13 @@ export default function Login() {
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
 
-  // Quick active tab inside Login
+  // Active step inside setup
   const [activeStep, setActiveStep] = useState<'CREDENTIALS' | 'LOCATION' | 'CAMERAS'>('CREDENTIALS');
 
   // Test local webcam stream
   const testWebcam = async () => {
     setCameraTestStatus('TESTING');
     try {
-      // Unlock audio on click
       tacticalSiren.initContext();
       const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
       setWebcamStream(stream);
@@ -122,18 +132,35 @@ export default function Login() {
     };
   }, [webcamStream]);
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleAuthSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!serviceId.trim() || !operatorName.trim()) {
-      setAuthError('Please enter valid military Service ID and Operator Name');
+    setAuthError('');
+    setSuccessMsg('');
+
+    if (!serviceId.trim()) {
+      setAuthError('Please enter your Military Service ID / Army Number');
       return;
     }
 
-    // Save session to localStorage
+    if (authMode === 'SIGN_UP') {
+      if (!operatorName.trim()) {
+        setAuthError('Please enter your full name and designation');
+        return;
+      }
+      if (passcode !== confirmPasscode) {
+        setAuthError('Passcode and confirmation passcode do not match');
+        return;
+      }
+    }
+
+    // Save operator session to localStorage
     const sessionData = {
       serviceId,
-      operatorName,
+      operatorName: authMode === 'SIGN_IN' ? (operatorName || 'Subedar Vikram Singh') : `${regRank} ${operatorName}`,
       clearanceLevel,
+      unit: regUnit,
+      rank: regRank,
+      phone: regPhone,
       base: selectedBase,
       webcamEnabled,
       ipCameraUrl,
@@ -145,8 +172,11 @@ export default function Login() {
     // Unlock audio context for immediate siren readiness
     tacticalSiren.initContext();
 
-    // Navigate to live dashboard
-    navigate('/dashboard');
+    setSuccessMsg(authMode === 'SIGN_IN' ? 'AUTHENTICATION VERIFIED. ACCESSING DEFENSE GRID...' : 'NEW OPERATOR REGISTERED & ENROLLED.');
+    
+    setTimeout(() => {
+      navigate('/dashboard');
+    }, 600);
   };
 
   return (
@@ -168,7 +198,7 @@ export default function Login() {
         alignItems: 'center',
         maxWidth: 1200,
         width: '100%',
-        margin: '0 auto 24px auto',
+        margin: '0 auto 20px auto',
         paddingBottom: 16,
         borderBottom: '1px solid rgba(34, 197, 94, 0.2)'
       }}>
@@ -195,7 +225,7 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Action Header Links: Launch Demo & System Badge */}
+        {/* Action Header Links: Try Demo & Security Indicator */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Link
             to="/demo"
@@ -203,8 +233,8 @@ export default function Login() {
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              padding: '8px 16px',
-              backgroundColor: 'rgba(234, 179, 8, 0.15)',
+              padding: '8px 18px',
+              backgroundColor: 'rgba(234, 179, 8, 0.18)',
               border: '1px solid var(--color-warning)',
               borderRadius: 4,
               color: 'var(--color-warning)',
@@ -212,11 +242,12 @@ export default function Login() {
               fontSize: 12,
               fontWeight: 'bold',
               letterSpacing: 1,
+              boxShadow: '0 0 15px rgba(234, 179, 8, 0.25)',
               transition: 'all 0.2s'
             }}
           >
-            <Sparkles size={14} className="animate-spin" />
-            LAUNCH INTERACTIVE DEMO MODE
+            <Sparkles size={15} className="animate-spin" />
+            TRY DEMO
           </Link>
 
           <div style={{
@@ -242,11 +273,11 @@ export default function Login() {
         width: '100%',
         margin: '0 auto',
         display: 'grid',
-        gridTemplateColumns: '1fr 1.2fr',
+        gridTemplateColumns: '1.05fr 1.15fr',
         gap: 28,
         flex: 1
       }}>
-        {/* Left Column: Multi-Step Login & Provisioning Card */}
+        {/* Left Column: Multi-Step Sign In / Sign Up & Provisioning Card */}
         <div className="card" style={{
           backgroundColor: '#0a0f0a',
           borderColor: 'rgba(34, 197, 94, 0.3)',
@@ -255,46 +286,102 @@ export default function Login() {
           flexDirection: 'column',
           padding: 24
         }}>
-          {/* Step Navigation Tabs */}
+          {/* Sign In vs Sign Up Mode Switcher */}
+          <div style={{
+            display: 'flex',
+            gap: 6,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            padding: 4,
+            borderRadius: 6,
+            marginBottom: 16,
+            border: '1px solid var(--color-border)'
+          }}>
+            <button
+              type="button"
+              onClick={() => { setAuthMode('SIGN_IN'); setAuthError(''); }}
+              style={{
+                flex: 1,
+                padding: '9px 6px',
+                fontSize: 12,
+                fontFamily: "'Share Tech Mono', monospace",
+                borderRadius: 4,
+                backgroundColor: authMode === 'SIGN_IN' ? 'var(--color-accent)' : 'transparent',
+                color: authMode === 'SIGN_IN' ? '#000' : 'var(--color-text-muted)',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6
+              }}
+            >
+              <LogIn size={14} /> SIGN IN (OPERATOR)
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAuthMode('SIGN_UP'); setAuthError(''); }}
+              style={{
+                flex: 1,
+                padding: '9px 6px',
+                fontSize: 12,
+                fontFamily: "'Share Tech Mono', monospace",
+                borderRadius: 4,
+                backgroundColor: authMode === 'SIGN_UP' ? 'var(--color-accent)' : 'transparent',
+                color: authMode === 'SIGN_UP' ? '#000' : 'var(--color-text-muted)',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6
+              }}
+            >
+              <UserPlus size={14} /> SIGN UP (ENROLL NEW)
+            </button>
+          </div>
+
+          {/* Setup Sub-Steps (Credentials -> Location -> Cameras) */}
           <div style={{
             display: 'flex',
             gap: 4,
-            backgroundColor: 'rgba(0,0,0,0.5)',
-            padding: 4,
-            borderRadius: 6,
-            marginBottom: 20,
-            border: '1px solid var(--color-border)'
+            backgroundColor: 'rgba(0,0,0,0.35)',
+            padding: 3,
+            borderRadius: 4,
+            marginBottom: 16,
+            border: '1px solid rgba(255,255,255,0.06)'
           }}>
             <button
               type="button"
               onClick={() => setActiveStep('CREDENTIALS')}
               style={{
                 flex: 1,
-                padding: '8px 4px',
-                fontSize: 11,
+                padding: '6px 4px',
+                fontSize: 10,
                 fontFamily: "'Share Tech Mono', monospace",
-                borderRadius: 4,
-                backgroundColor: activeStep === 'CREDENTIALS' ? 'var(--color-accent)' : 'transparent',
-                color: activeStep === 'CREDENTIALS' ? '#000' : 'var(--color-text-muted)',
-                border: 'none',
+                borderRadius: 3,
+                backgroundColor: activeStep === 'CREDENTIALS' ? 'rgba(34, 197, 94, 0.2)' : 'transparent',
+                color: activeStep === 'CREDENTIALS' ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                border: activeStep === 'CREDENTIALS' ? '1px solid var(--color-accent)' : '1px solid transparent',
                 cursor: 'pointer',
                 fontWeight: 'bold'
               }}
             >
-              1. OPERATOR LOGIN
+              1. {authMode === 'SIGN_IN' ? 'CREDENTIALS' : 'REGISTRATION'}
             </button>
             <button
               type="button"
               onClick={() => setActiveStep('LOCATION')}
               style={{
                 flex: 1,
-                padding: '8px 4px',
-                fontSize: 11,
+                padding: '6px 4px',
+                fontSize: 10,
                 fontFamily: "'Share Tech Mono', monospace",
-                borderRadius: 4,
-                backgroundColor: activeStep === 'LOCATION' ? 'var(--color-accent)' : 'transparent',
-                color: activeStep === 'LOCATION' ? '#000' : 'var(--color-text-muted)',
-                border: 'none',
+                borderRadius: 3,
+                backgroundColor: activeStep === 'LOCATION' ? 'rgba(34, 197, 94, 0.2)' : 'transparent',
+                color: activeStep === 'LOCATION' ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                border: activeStep === 'LOCATION' ? '1px solid var(--color-accent)' : '1px solid transparent',
                 cursor: 'pointer',
                 fontWeight: 'bold'
               }}
@@ -306,13 +393,13 @@ export default function Login() {
               onClick={() => setActiveStep('CAMERAS')}
               style={{
                 flex: 1,
-                padding: '8px 4px',
-                fontSize: 11,
+                padding: '6px 4px',
+                fontSize: 10,
                 fontFamily: "'Share Tech Mono', monospace",
-                borderRadius: 4,
-                backgroundColor: activeStep === 'CAMERAS' ? 'var(--color-accent)' : 'transparent',
-                color: activeStep === 'CAMERAS' ? '#000' : 'var(--color-text-muted)',
-                border: 'none',
+                borderRadius: 3,
+                backgroundColor: activeStep === 'CAMERAS' ? 'rgba(34, 197, 94, 0.2)' : 'transparent',
+                color: activeStep === 'CAMERAS' ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                border: activeStep === 'CAMERAS' ? '1px solid var(--color-accent)' : '1px solid transparent',
                 cursor: 'pointer',
                 fontWeight: 'bold'
               }}
@@ -328,7 +415,7 @@ export default function Login() {
               border: '1px solid var(--color-alert)',
               color: 'var(--color-alert)',
               borderRadius: 4,
-              marginBottom: 16,
+              marginBottom: 14,
               fontSize: 12,
               display: 'flex',
               alignItems: 'center',
@@ -338,69 +425,200 @@ export default function Login() {
             </div>
           )}
 
-          <form onSubmit={handleLoginSubmit} style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-            {/* STEP 1: OPERATOR CREDENTIALS */}
+          {successMsg && (
+            <div style={{
+              padding: '8px 12px',
+              backgroundColor: 'rgba(34, 197, 94, 0.2)',
+              border: '1px solid var(--color-success)',
+              color: 'var(--color-success)',
+              borderRadius: 4,
+              marginBottom: 14,
+              fontSize: 12,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}>
+              <CheckCircle2 size={15} /> {successMsg}
+            </div>
+          )}
+
+          <form onSubmit={handleAuthSubmit} style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+            {/* STEP 1: CREDENTIALS (SIGN IN OR SIGN UP) */}
             {activeStep === 'CREDENTIALS' && (
-              <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 16, flex: 1 }}>
+              <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1 }}>
                 <div>
-                  <h3 style={{ margin: '0 0 6px 0', fontSize: 16, color: 'var(--color-accent)' }}>
-                    OPERATOR CREDENTIALS VERIFICATION
+                  <h3 style={{ margin: '0 0 4px 0', fontSize: 15, color: 'var(--color-accent)' }}>
+                    {authMode === 'SIGN_IN' ? 'OPERATOR SIGN IN' : 'NEW OPERATOR ENROLLMENT'}
                   </h3>
-                  <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-muted)' }}>
-                    Enter military service identification to authenticate to the defense terminal.
+                  <p style={{ margin: 0, fontSize: 11, color: 'var(--color-text-muted)' }}>
+                    {authMode === 'SIGN_IN' 
+                      ? 'Authenticate your military service ID to access the perimeter defense grid.' 
+                      : 'Enroll new defense personnel credentials and security clearance level.'}
                   </p>
                 </div>
 
+                {/* Service ID / Badge Number */}
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 6 }}>
-                    SERVICE NUMBER / CALLSIGN
+                  <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
+                    MILITARY SERVICE NUMBER / BADGE ID
                   </label>
                   <input
                     type="text"
                     value={serviceId}
                     onChange={(e) => setServiceId(e.target.value)}
-                    placeholder="e.g. IA-948201"
+                    placeholder="e.g. IA-948201 or OP-773194"
                     style={{
                       width: '100%',
-                      padding: '10px 12px',
+                      padding: '9px 12px',
                       backgroundColor: 'rgba(0, 0, 0, 0.6)',
                       border: '1px solid var(--color-border)',
                       borderRadius: 4,
                       color: 'var(--color-accent)',
                       fontFamily: "'Share Tech Mono', monospace",
-                      fontSize: 14,
+                      fontSize: 13,
                       outline: 'none',
                       boxSizing: 'border-box'
                     }}
                   />
                 </div>
 
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 6 }}>
-                    OPERATOR NAME & RANK
-                  </label>
-                  <input
-                    type="text"
-                    value={operatorName}
-                    onChange={(e) => setOperatorName(e.target.value)}
-                    placeholder="e.g. Subedar Vikram Singh"
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      backgroundColor: 'rgba(0, 0, 0, 0.6)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 4,
-                      color: '#ffffff',
-                      fontFamily: "'Share Tech Mono', monospace",
-                      fontSize: 14,
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                </div>
+                {/* Additional fields if Sign Up */}
+                {authMode === 'SIGN_UP' && (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <div>
+                        <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
+                          OPERATOR FULL NAME
+                        </label>
+                        <input
+                          type="text"
+                          value={operatorName}
+                          onChange={(e) => setOperatorName(e.target.value)}
+                          placeholder="e.g. Vikram Singh"
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: 4,
+                            color: '#ffffff',
+                            fontFamily: "'Share Tech Mono', monospace",
+                            fontSize: 13,
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
+                          MILITARY RANK
+                        </label>
+                        <select
+                          value={regRank}
+                          onChange={(e) => setRegRank(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '9px 12px',
+                            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                            border: '1px solid var(--color-border)',
+                            borderRadius: 4,
+                            color: '#ffffff',
+                            fontFamily: "'Share Tech Mono', monospace",
+                            fontSize: 12,
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                          }}
+                        >
+                          <option value="Subedar Major">Subedar Major</option>
+                          <option value="Subedar">Subedar</option>
+                          <option value="Major">Major</option>
+                          <option value="Colonel">Colonel</option>
+                          <option value="Captain">Captain</option>
+                          <option value="Havildar">Havildar</option>
+                        </select>
+                      </div>
+                    </div>
 
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
+                        ASSIGNED DEFENSE UNIT / BRIGADE
+                      </label>
+                      <input
+                        type="text"
+                        value={regUnit}
+                        onChange={(e) => setRegUnit(e.target.value)}
+                        placeholder="e.g. 14 Corps - High Altitude Recon"
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: 4,
+                          color: '#ffffff',
+                          fontFamily: "'Share Tech Mono', monospace",
+                          fontSize: 13,
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
+                        SECURE COMM / MOBILE LINE
+                      </label>
+                      <input
+                        type="text"
+                        value={regPhone}
+                        onChange={(e) => setRegPhone(e.target.value)}
+                        placeholder="+91 98765-43210"
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: 4,
+                          color: '#ffffff',
+                          fontFamily: "'Share Tech Mono', monospace",
+                          fontSize: 13,
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* If Sign In: Operator Name */}
+                {authMode === 'SIGN_IN' && (
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
+                      OPERATOR CALLSIGN / NAME
+                    </label>
+                    <input
+                      type="text"
+                      value={operatorName}
+                      onChange={(e) => setOperatorName(e.target.value)}
+                      placeholder="e.g. Subedar Vikram Singh"
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 4,
+                        color: '#ffffff',
+                        fontFamily: "'Share Tech Mono', monospace",
+                        fontSize: 13,
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Security Clearance */}
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
                     SECURITY CLEARANCE LEVEL
                   </label>
                   <select
@@ -408,13 +626,13 @@ export default function Login() {
                     onChange={(e) => setClearanceLevel(e.target.value)}
                     style={{
                       width: '100%',
-                      padding: '10px 12px',
+                      padding: '9px 12px',
                       backgroundColor: 'rgba(0, 0, 0, 0.6)',
                       border: '1px solid var(--color-border)',
                       borderRadius: 4,
                       color: 'var(--color-warning)',
                       fontFamily: "'Share Tech Mono', monospace",
-                      fontSize: 13,
+                      fontSize: 12,
                       outline: 'none',
                       boxSizing: 'border-box'
                     }}
@@ -426,48 +644,97 @@ export default function Login() {
                   </select>
                 </div>
 
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 6 }}>
-                    ENCRYPTED PASSCODE / BIOMETRIC PIN
-                  </label>
-                  <input
-                    type="password"
-                    value={passcode}
-                    onChange={(e) => setPasscode(e.target.value)}
-                    placeholder="Enter Security Key"
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      backgroundColor: 'rgba(0, 0, 0, 0.6)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 4,
-                      color: '#ffffff',
-                      fontFamily: "'Share Tech Mono', monospace",
-                      fontSize: 14,
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  />
+                {/* Passcode */}
+                <div style={{ display: 'grid', gridTemplateColumns: authMode === 'SIGN_UP' ? '1fr 1fr' : '1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
+                      ENCRYPTED PASSCODE / KEY
+                    </label>
+                    <input
+                      type="password"
+                      value={passcode}
+                      onChange={(e) => setPasscode(e.target.value)}
+                      placeholder="Passcode"
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 4,
+                        color: '#ffffff',
+                        fontFamily: "'Share Tech Mono', monospace",
+                        fontSize: 13,
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                  {authMode === 'SIGN_UP' && (
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
+                        CONFIRM PASSCODE
+                      </label>
+                      <input
+                        type="password"
+                        value={confirmPasscode}
+                        onChange={(e) => setConfirmPasscode(e.target.value)}
+                        placeholder="Confirm Passcode"
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: 4,
+                          color: '#ffffff',
+                          fontFamily: "'Share Tech Mono', monospace",
+                          fontSize: 13,
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
 
-                <div style={{ marginTop: 'auto', paddingTop: 16, display: 'flex', gap: 10 }}>
+                {/* Action Row with Try Demo button */}
+                <div style={{ marginTop: 'auto', paddingTop: 14, display: 'flex', gap: 10 }}>
+                  <Link
+                    to="/demo"
+                    style={{
+                      padding: '10px 14px',
+                      backgroundColor: 'rgba(234, 179, 8, 0.15)',
+                      border: '1px solid var(--color-warning)',
+                      color: 'var(--color-warning)',
+                      borderRadius: 4,
+                      textDecoration: 'none',
+                      fontSize: 12,
+                      fontWeight: 'bold',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <Sparkles size={14} /> TRY DEMO
+                  </Link>
+
                   <button
                     type="button"
                     onClick={() => setActiveStep('LOCATION')}
                     style={{
                       flex: 1,
-                      padding: '12px',
+                      padding: '11px',
                       backgroundColor: 'var(--color-accent)',
                       color: '#000',
                       border: 'none',
                       borderRadius: 4,
                       fontWeight: 'bold',
-                      fontSize: 13,
+                      fontSize: 12,
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: 8
+                      gap: 6
                     }}
                   >
                     NEXT: SELECT BASE LOCATION &rarr;
@@ -478,23 +745,23 @@ export default function Login() {
 
             {/* STEP 2: LOCATION & SECTOR SELECTION */}
             {activeStep === 'LOCATION' && (
-              <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1 }}>
+              <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
                 <div>
-                  <h3 style={{ margin: '0 0 6px 0', fontSize: 16, color: 'var(--color-accent)' }}>
+                  <h3 style={{ margin: '0 0 4px 0', fontSize: 15, color: 'var(--color-accent)' }}>
                     ASSIGN MONITORING BASE & SECTOR
                   </h3>
-                  <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                  <p style={{ margin: 0, fontSize: 11, color: 'var(--color-text-muted)' }}>
                     Select the active operational base and geopolitical border corridor to patrol.
                   </p>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 300, overflowY: 'auto' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 280, overflowY: 'auto' }}>
                   {MILITARY_BASES.map(base => (
                     <div
                       key={base.id}
                       onClick={() => setSelectedBase(base)}
                       style={{
-                        padding: '12px',
+                        padding: '10px 12px',
                         borderRadius: 6,
                         border: selectedBase.id === base.id ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
                         backgroundColor: selectedBase.id === base.id ? 'rgba(34, 197, 94, 0.12)' : 'rgba(0, 0, 0, 0.4)',
@@ -506,19 +773,19 @@ export default function Login() {
                       }}
                     >
                       <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                          <MapPin size={14} color={selectedBase.id === base.id ? 'var(--color-accent)' : 'var(--color-text-muted)'} />
-                          <strong style={{ fontSize: 13, color: selectedBase.id === base.id ? 'var(--color-accent)' : '#fff' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                          <MapPin size={13} color={selectedBase.id === base.id ? 'var(--color-accent)' : 'var(--color-text-muted)'} />
+                          <strong style={{ fontSize: 12, color: selectedBase.id === base.id ? 'var(--color-accent)' : '#fff' }}>
                             {base.name}
                           </strong>
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                        <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
                           {base.code} &bull; {base.coordinates} &bull; {base.camerasCount} SENSORS
                         </div>
                       </div>
                       <span style={{
-                        fontSize: 10,
-                        padding: '3px 8px',
+                        fontSize: 9,
+                        padding: '2px 6px',
                         borderRadius: 3,
                         backgroundColor: base.threatLevel === 'DEFCON 1' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(234, 179, 8, 0.2)',
                         color: base.threatLevel === 'DEFCON 1' ? 'var(--color-alert)' : 'var(--color-warning)',
@@ -530,39 +797,59 @@ export default function Login() {
                   ))}
                 </div>
 
-                <div style={{ marginTop: 'auto', paddingTop: 16, display: 'flex', gap: 10 }}>
+                <div style={{ marginTop: 'auto', paddingTop: 14, display: 'flex', gap: 10 }}>
                   <button
                     type="button"
                     onClick={() => setActiveStep('CREDENTIALS')}
                     style={{
-                      padding: '10px 16px',
+                      padding: '9px 14px',
                       backgroundColor: 'transparent',
                       border: '1px solid var(--color-border)',
                       color: 'var(--color-text)',
                       borderRadius: 4,
                       cursor: 'pointer',
-                      fontSize: 12
+                      fontSize: 11
                     }}
                   >
                     &larr; BACK
                   </button>
+
+                  <Link
+                    to="/demo"
+                    style={{
+                      padding: '9px 14px',
+                      backgroundColor: 'rgba(234, 179, 8, 0.15)',
+                      border: '1px solid var(--color-warning)',
+                      color: 'var(--color-warning)',
+                      borderRadius: 4,
+                      textDecoration: 'none',
+                      fontSize: 11,
+                      fontWeight: 'bold',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <Sparkles size={13} /> TRY DEMO
+                  </Link>
+
                   <button
                     type="button"
                     onClick={() => setActiveStep('CAMERAS')}
                     style={{
                       flex: 1,
-                      padding: '12px',
+                      padding: '11px',
                       backgroundColor: 'var(--color-accent)',
                       color: '#000',
                       border: 'none',
                       borderRadius: 4,
                       fontWeight: 'bold',
-                      fontSize: 13,
+                      fontSize: 12,
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: 8
+                      gap: 6
                     }}
                   >
                     NEXT: CONNECT CAMERAS &rarr;
@@ -573,32 +860,32 @@ export default function Login() {
 
             {/* STEP 3: CONNECT CAMERAS & SENSORS */}
             {activeStep === 'CAMERAS' && (
-              <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1 }}>
+              <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
                 <div>
-                  <h3 style={{ margin: '0 0 6px 0', fontSize: 16, color: 'var(--color-accent)' }}>
+                  <h3 style={{ margin: '0 0 4px 0', fontSize: 15, color: 'var(--color-accent)' }}>
                     PROVISION CAMERA FEEDS & SENSORS
                   </h3>
-                  <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                  <p style={{ margin: 0, fontSize: 11, color: 'var(--color-text-muted)' }}>
                     Configure local optical sensors, RTSP IP video feeds, and AI neural net processors.
                   </p>
                 </div>
 
                 {/* 1. Local Webcam Toggle & Test */}
                 <div style={{
-                  padding: 12,
+                  padding: 10,
                   backgroundColor: 'rgba(0,0,0,0.5)',
                   border: '1px solid var(--color-border)',
                   borderRadius: 6,
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 8
+                  gap: 6
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Camera size={16} color="var(--color-accent)" />
-                      <strong style={{ fontSize: 12 }}>LOCAL OPTICAL WEBCAM (AI DETECTOR)</strong>
+                      <Camera size={15} color="var(--color-accent)" />
+                      <strong style={{ fontSize: 11 }}>LOCAL OPTICAL WEBCAM (AI DETECTOR)</strong>
                     </div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, cursor: 'pointer' }}>
                       <input
                         type="checkbox"
                         checked={webcamEnabled}
@@ -613,35 +900,35 @@ export default function Login() {
                       onClick={testWebcam}
                       disabled={cameraTestStatus === 'TESTING'}
                       style={{
-                        padding: '6px 12px',
+                        padding: '5px 10px',
                         backgroundColor: 'var(--color-surface)',
                         border: '1px solid var(--color-accent)',
                         color: 'var(--color-accent)',
                         borderRadius: 4,
-                        fontSize: 11,
+                        fontSize: 10,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 6
                       }}
                     >
-                      <RefreshCw size={12} className={cameraTestStatus === 'TESTING' ? 'animate-spin' : ''} />
+                      <RefreshCw size={11} className={cameraTestStatus === 'TESTING' ? 'animate-spin' : ''} />
                       {cameraTestStatus === 'TESTING' ? 'PROBING SENSOR...' : 'TEST WEBCAM SIGNAL'}
                     </button>
                     {cameraTestStatus === 'SUCCESS' && (
-                      <span style={{ fontSize: 11, color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <CheckCircle2 size={14} /> SIGNAL LOCKED (60 FPS)
+                      <span style={{ fontSize: 10, color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <CheckCircle2 size={12} /> SIGNAL LOCKED (60 FPS)
                       </span>
                     )}
                     {cameraTestStatus === 'FAILED' && (
-                      <span style={{ fontSize: 11, color: 'var(--color-alert)' }}>
+                      <span style={{ fontSize: 10, color: 'var(--color-alert)' }}>
                         ⚠️ SENSOR BLOCKED OR PERMISSION DENIED
                       </span>
                     )}
                   </div>
                   {/* Live Video Preview Box */}
                   {webcamStream && (
-                    <div style={{ width: '100%', height: 110, backgroundColor: '#000', borderRadius: 4, overflow: 'hidden', border: '1px solid var(--color-success)', marginTop: 4 }}>
+                    <div style={{ width: '100%', height: 90, backgroundColor: '#000', borderRadius: 4, overflow: 'hidden', border: '1px solid var(--color-success)', marginTop: 2 }}>
                       <video ref={videoPreviewRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
                   )}
@@ -649,17 +936,17 @@ export default function Login() {
 
                 {/* 2. RTSP IP Camera Stream Input */}
                 <div style={{
-                  padding: 12,
+                  padding: 10,
                   backgroundColor: 'rgba(0,0,0,0.5)',
                   border: '1px solid var(--color-border)',
                   borderRadius: 6,
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 6
+                  gap: 4
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Video size={16} color="var(--color-warning)" />
-                    <strong style={{ fontSize: 12 }}>RTSP / IP SURVEILLANCE FEED URL</strong>
+                    <Video size={15} color="var(--color-warning)" />
+                    <strong style={{ fontSize: 11 }}>RTSP / IP SURVEILLANCE FEED URL</strong>
                   </div>
                   <input
                     type="text"
@@ -667,12 +954,12 @@ export default function Login() {
                     onChange={(e) => setIpCameraUrl(e.target.value)}
                     placeholder="rtsp://admin:pass@192.168.1.100:554/stream"
                     style={{
-                      padding: '8px 10px',
+                      padding: '7px 10px',
                       backgroundColor: 'rgba(0,0,0,0.7)',
                       border: '1px solid var(--color-border)',
                       borderRadius: 4,
                       color: 'var(--color-text)',
-                      fontSize: 12,
+                      fontSize: 11,
                       fontFamily: "'Share Tech Mono', monospace"
                     }}
                   />
@@ -680,7 +967,7 @@ export default function Login() {
 
                 {/* 3. AI Backend Fast Inference Engine */}
                 <div style={{
-                  padding: 12,
+                  padding: 10,
                   backgroundColor: 'rgba(0,0,0,0.5)',
                   border: '1px solid var(--color-border)',
                   borderRadius: 6,
@@ -689,13 +976,13 @@ export default function Login() {
                   alignItems: 'center'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Cpu size={16} color="var(--color-accent)" />
+                    <Cpu size={15} color="var(--color-accent)" />
                     <div>
-                      <strong style={{ fontSize: 12, display: 'block' }}>YOLOV8 FASTAPI ENGINE</strong>
-                      <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>Port 8000 Stream / Cloud WebSocket</span>
+                      <strong style={{ fontSize: 11, display: 'block' }}>YOLOV8 FASTAPI ENGINE</strong>
+                      <span style={{ fontSize: 9, color: 'var(--color-text-muted)' }}>Port 8000 Stream / Cloud WebSocket</span>
                     </div>
                   </div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, cursor: 'pointer' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, cursor: 'pointer' }}>
                     <input
                       type="checkbox"
                       checked={backendStreamEnabled}
@@ -705,43 +992,64 @@ export default function Login() {
                   </label>
                 </div>
 
-                <div style={{ marginTop: 'auto', paddingTop: 16, display: 'flex', gap: 10 }}>
+                <div style={{ marginTop: 'auto', paddingTop: 14, display: 'flex', gap: 8 }}>
                   <button
                     type="button"
                     onClick={() => setActiveStep('LOCATION')}
                     style={{
-                      padding: '10px 16px',
+                      padding: '9px 12px',
                       backgroundColor: 'transparent',
                       border: '1px solid var(--color-border)',
                       color: 'var(--color-text)',
                       borderRadius: 4,
                       cursor: 'pointer',
-                      fontSize: 12
+                      fontSize: 11
                     }}
                   >
                     &larr; BACK
                   </button>
+
+                  <Link
+                    to="/demo"
+                    style={{
+                      padding: '9px 14px',
+                      backgroundColor: 'rgba(234, 179, 8, 0.15)',
+                      border: '1px solid var(--color-warning)',
+                      color: 'var(--color-warning)',
+                      borderRadius: 4,
+                      textDecoration: 'none',
+                      fontSize: 11,
+                      fontWeight: 'bold',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    <Sparkles size={13} /> TRY DEMO
+                  </Link>
+
                   <button
                     type="submit"
                     style={{
                       flex: 1,
-                      padding: '12px',
+                      padding: '11px',
                       backgroundColor: 'var(--color-accent)',
                       color: '#000',
                       border: 'none',
                       borderRadius: 4,
                       fontWeight: 'bold',
-                      fontSize: 13,
+                      fontSize: 12,
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: 8,
+                      gap: 6,
                       boxShadow: '0 0 15px rgba(34, 197, 94, 0.4)'
                     }}
                   >
-                    <Play size={16} fill="#000" />
-                    AUTHENTICATE & ENTER DEFENSE GRID
+                    <Play size={14} fill="#000" />
+                    {authMode === 'SIGN_IN' ? 'AUTHENTICATE & ENTER GRID' : 'ENROLL & ENTER GRID'}
                   </button>
                 </div>
               </div>
@@ -808,7 +1116,7 @@ export default function Login() {
             </div>
           </div>
 
-          {/* Quick Interactive Features Showcase Card */}
+          {/* Quick Interactive Features Showcase Card with Try Demo Highlight */}
           <div className="card" style={{
             backgroundColor: '#0a0f0a',
             borderColor: 'var(--color-border)',
@@ -822,25 +1130,27 @@ export default function Login() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                 <Sparkles size={18} color="var(--color-accent)" />
                 <h3 style={{ margin: 0, fontSize: 14, color: 'var(--color-accent)' }}>
-                  ACTIVE DEFENSE CAPABILITIES INCLUDED
+                  TRY INTERACTIVE DEFENSE SANDBOX
                 </h3>
               </div>
-              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.8 }}>
-                <li><strong>Dual-Layer In-Browser AI:</strong> TensorFlow.js neural net + real-time pixel saliency.</li>
-                <li><strong>Threat vs Soldier Partitioning:</strong> Authorized soldiers (Green) vs non-human items (Red).</li>
-                <li><strong>Continuous Acoustic Siren:</strong> Auto-triggers Web Audio synthesis on intrusion breach.</li>
-                <li><strong>Multi-Spectral Optics:</strong> Normal Visible Light, Thermal IR, NVG, and FLIR.</li>
-                <li><strong>Polygon Geofencing:</strong> Perimeter tripwires and automated incident telemetry.</li>
+              <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 12px 0' }}>
+                Want to evaluate AEGIS-VISION without signing in? Launch the live sandbox demo to test AI object detection, siren audio synthesis, and multi-spectral optics.
+              </p>
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 11, color: 'var(--color-text-muted)', lineHeight: 1.8 }}>
+                <li><strong>Dual-Layer In-Browser AI:</strong> Real-time neural network + pixel saliency.</li>
+                <li><strong>Threat vs Soldier Partitioning:</strong> Sentry soldiers vs non-human breaches.</li>
+                <li><strong>Continuous Acoustic Siren:</strong> Web Audio synthesizer alarm.</li>
+                <li><strong>Multi-Spectral Optics:</strong> Normal, Thermal IR, NVG, and FLIR.</li>
               </ul>
             </div>
 
-            {/* Direct Demo Link Button */}
+            {/* Direct Try Demo Button */}
             <Link
               to="/demo"
               style={{
-                marginTop: 16,
+                marginTop: 14,
                 padding: '12px 16px',
-                backgroundColor: 'rgba(234, 179, 8, 0.12)',
+                backgroundColor: 'rgba(234, 179, 8, 0.16)',
                 border: '1px solid var(--color-warning)',
                 borderRadius: 4,
                 color: 'var(--color-warning)',
@@ -852,11 +1162,12 @@ export default function Login() {
                 justifyContent: 'center',
                 gap: 10,
                 textAlign: 'center',
+                boxShadow: '0 0 20px rgba(234, 179, 8, 0.2)',
                 transition: 'all 0.2s'
               }}
             >
               <Sparkles size={16} />
-              OPEN INTERACTIVE DEMO & CAPABILITY SANDBOX &rarr;
+              TRY DEMO (LAUNCH CAPABILITY SANDBOX) &rarr;
             </Link>
           </div>
         </div>
