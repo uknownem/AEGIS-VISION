@@ -156,12 +156,11 @@ export default function Login() {
   // Active step inside setup
   const [activeStep, setActiveStep] = useState<'CREDENTIALS' | 'LOCATION' | 'CAMERAS'>('CREDENTIALS');
 
-  // Initialize and Load Saved Credentials on Component Mount
+  // Load Saved Accounts and Credentials on Component Mount
   useEffect(() => {
     try {
-      // Ensure default accounts exist in localStorage
-      const existingAccounts = localStorage.getItem('aegis_accounts');
-      if (!existingAccounts) {
+      const stored = localStorage.getItem('aegis_accounts');
+      if (!stored) {
         localStorage.setItem('aegis_accounts', JSON.stringify(DEFAULT_ACCOUNTS));
       }
 
@@ -204,6 +203,23 @@ export default function Login() {
     setConfirmPasscode('');
   };
 
+  // Helper to fetch all registered accounts
+  const getAllAccounts = (): OperatorAccount[] => {
+    try {
+      const stored = localStorage.getItem('aegis_accounts');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const map = new Map<string, OperatorAccount>();
+          DEFAULT_ACCOUNTS.forEach(a => map.set(a.serviceId.toUpperCase(), a));
+          parsed.forEach((a: OperatorAccount) => map.set(a.serviceId.toUpperCase(), a));
+          return Array.from(map.values());
+        }
+      }
+    } catch {}
+    return DEFAULT_ACCOUNTS;
+  };
+
   // Test local webcam stream
   const testWebcam = async () => {
     setCameraTestStatus('TESTING');
@@ -231,26 +247,8 @@ export default function Login() {
     };
   }, [webcamStream]);
 
-  // Helper to fetch all registered accounts
-  const getAllAccounts = (): OperatorAccount[] => {
-    try {
-      const stored = localStorage.getItem('aegis_accounts');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Merge with DEFAULT_ACCOUNTS avoiding duplicate serviceIds
-          const map = new Map<string, OperatorAccount>();
-          DEFAULT_ACCOUNTS.forEach(a => map.set(a.serviceId.toUpperCase(), a));
-          parsed.forEach((a: OperatorAccount) => map.set(a.serviceId.toUpperCase(), a));
-          return Array.from(map.values());
-        }
-      }
-    } catch {}
-    return DEFAULT_ACCOUNTS;
-  };
-
-  const handleAuthSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Master Authentication & Login Logic (Strict validation)
+  const performAuthentication = (): boolean => {
     setAuthError('');
     setSuccessMsg('');
 
@@ -259,12 +257,12 @@ export default function Login() {
 
     if (!trimmedId) {
       setAuthError('🚨 ACCESS REJECTED: Please enter your Military Service ID / Army Number.');
-      return;
+      return false;
     }
 
     if (!trimmedPass) {
       setAuthError('🚨 ACCESS REJECTED: Please enter your military security passcode.');
-      return;
+      return false;
     }
 
     const allAccounts = getAllAccounts();
@@ -275,17 +273,17 @@ export default function Login() {
 
       // If user does not exist in authorized directory
       if (!account) {
-        setAuthError(`🚨 ACCESS DENIED: Service ID "${trimmedId}" is not registered in the military defense database. Please verify your ID or click "SIGN UP" to register.`);
-        return;
+        setAuthError(`🚨 ACCESS DENIED: Service ID "${trimmedId}" is NOT registered in the defense database. Access rejected. (Click "SIGN UP" to enroll a new ID).`);
+        return false;
       }
 
       // If passcode does not match
       if (account.passcode !== trimmedPass) {
-        setAuthError(`🚨 ACCESS DENIED: Invalid passcode for operator "${trimmedId}". Terminal authorization rejected.`);
-        return;
+        setAuthError(`🚨 ACCESS DENIED: Incorrect passcode for Service ID "${trimmedId}". Terminal authorization rejected.`);
+        return false;
       }
 
-      // Credentials are valid!
+      // Credentials are 100% VALID!
       const sessionData = {
         serviceId: account.serviceId,
         operatorName: account.operatorName,
@@ -314,34 +312,34 @@ export default function Login() {
       setTimeout(() => {
         navigate('/dashboard');
       }, 600);
-      return;
+      return true;
     }
 
     // 2. SIGN UP / REGISTRATION FLOW
     if (authMode === 'SIGN_UP') {
       if (!operatorName.trim()) {
         setAuthError('🚨 REGISTRATION ERROR: Please enter operator full name and designation.');
-        return;
+        return false;
       }
 
       if (trimmedPass !== confirmPasscode.trim()) {
         setAuthError('🚨 REGISTRATION ERROR: Passcode and confirmation passcode do not match.');
-        return;
+        return false;
       }
 
       if (trimmedPass.length < 4) {
         setAuthError('🚨 REGISTRATION ERROR: Passcode must be at least 4 characters long.');
-        return;
+        return false;
       }
 
       // Check if already registered
       const existing = allAccounts.find(acc => acc.serviceId.toUpperCase() === trimmedId);
       if (existing) {
         setAuthError(`⚠️ REGISTRATION NOTICE: Service ID "${trimmedId}" is already registered. Please switch to SIGN IN.`);
-        return;
+        return false;
       }
 
-      // Register new account
+      // Register new account into persistent localStorage
       const newAccount: OperatorAccount = {
         serviceId: trimmedId,
         passcode: trimmedPass,
@@ -371,12 +369,20 @@ export default function Login() {
       }
 
       tacticalSiren.initContext();
-      setSuccessMsg(`✅ OPERATOR ENROLLED & REGISTERED. ACCESSING DEFENSE GRID...`);
+      setSuccessMsg(`✅ OPERATOR "${trimmedId}" ENROLLED & REGISTERED. ACCESSING DEFENSE GRID...`);
 
       setTimeout(() => {
         navigate('/dashboard');
       }, 600);
+      return true;
     }
+
+    return false;
+  };
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    performAuthentication();
   };
 
   return (
@@ -498,7 +504,7 @@ export default function Login() {
           }}>
             <button
               type="button"
-              onClick={() => { setAuthMode('SIGN_IN'); setAuthError(''); }}
+              onClick={() => { setAuthMode('SIGN_IN'); setAuthError(''); setSuccessMsg(''); }}
               style={{
                 flex: 1,
                 padding: '9px 6px',
@@ -520,7 +526,7 @@ export default function Login() {
             </button>
             <button
               type="button"
-              onClick={() => { setAuthMode('SIGN_UP'); setAuthError(''); }}
+              onClick={() => { setAuthMode('SIGN_UP'); setAuthError(''); setSuccessMsg(''); }}
               style={{
                 flex: 1,
                 padding: '9px 6px',
@@ -645,7 +651,7 @@ export default function Login() {
             </div>
           )}
 
-          <form onSubmit={handleAuthSubmit} style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <form onSubmit={handleFormSubmit} style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             {/* STEP 1: CREDENTIALS (SIGN IN OR SIGN UP) */}
             {activeStep === 'CREDENTIALS' && (
               <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 13, flex: 1 }}>
@@ -668,7 +674,7 @@ export default function Login() {
                   <input
                     type="text"
                     value={serviceId}
-                    onChange={(e) => setServiceId(e.target.value)}
+                    onChange={(e) => { setServiceId(e.target.value); setAuthError(''); }}
                     placeholder="e.g. IA-948201 or OP-773194"
                     required
                     style={{
@@ -858,8 +864,8 @@ export default function Login() {
                     <input
                       type="password"
                       value={passcode}
-                      onChange={(e) => setPasscode(e.target.value)}
-                      placeholder="e.g. aegis2026"
+                      onChange={(e) => { setPasscode(e.target.value); setAuthError(''); }}
+                      placeholder="Enter security passcode"
                       required
                       style={{
                         width: '100%',
@@ -883,7 +889,7 @@ export default function Login() {
                       <input
                         type="password"
                         value={confirmPasscode}
-                        onChange={(e) => setConfirmPasscode(e.target.value)}
+                        onChange={(e) => { setConfirmPasscode(e.target.value); setAuthError(''); }}
                         placeholder="Confirm Passcode"
                         required
                         style={{
@@ -960,8 +966,8 @@ export default function Login() {
                   )}
                 </div>
 
-                {/* Action Row with Try Demo button */}
-                <div style={{ marginTop: 'auto', paddingTop: 14, display: 'flex', gap: 10 }}>
+                {/* Direct Action Row: Authenticate Directly OR Select Location / Cameras */}
+                <div style={{ marginTop: 'auto', paddingTop: 14, display: 'flex', gap: 8 }}>
                   <Link
                     to="/demo"
                     style={{
@@ -971,7 +977,7 @@ export default function Login() {
                       color: 'var(--color-warning)',
                       borderRadius: 4,
                       textDecoration: 'none',
-                      fontSize: 12,
+                      fontSize: 11,
                       fontWeight: 'bold',
                       display: 'flex',
                       alignItems: 'center',
@@ -979,15 +985,34 @@ export default function Login() {
                       whiteSpace: 'nowrap'
                     }}
                   >
-                    <Sparkles size={14} /> TRY DEMO
+                    <Sparkles size={13} /> TRY DEMO
                   </Link>
 
                   <button
                     type="button"
-                    onClick={() => setActiveStep('LOCATION')}
+                    onClick={() => {
+                      // Move to location step
+                      setActiveStep('LOCATION');
+                    }}
+                    style={{
+                      padding: '10px 12px',
+                      backgroundColor: 'transparent',
+                      border: '1px solid var(--color-border)',
+                      color: 'var(--color-text)',
+                      borderRadius: 4,
+                      fontSize: 11,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    CONFIG BASE / CAM &rarr;
+                  </button>
+
+                  <button
+                    type="submit"
                     style={{
                       flex: 1,
-                      padding: '11px',
+                      padding: '11px 14px',
                       backgroundColor: 'var(--color-accent)',
                       color: '#000',
                       border: 'none',
@@ -998,10 +1023,12 @@ export default function Login() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: 6
+                      gap: 6,
+                      boxShadow: '0 0 15px rgba(34, 197, 94, 0.4)'
                     }}
                   >
-                    NEXT: SELECT BASE LOCATION &rarr;
+                    <Play size={13} fill="#000" />
+                    {authMode === 'SIGN_IN' ? 'SIGN IN & ENTER GRID' : 'ENROLL & ENTER GRID'}
                   </button>
                 </div>
               </div>
@@ -1077,25 +1104,6 @@ export default function Login() {
                   >
                     &larr; BACK
                   </button>
-
-                  <Link
-                    to="/demo"
-                    style={{
-                      padding: '9px 14px',
-                      backgroundColor: 'rgba(234, 179, 8, 0.15)',
-                      border: '1px solid var(--color-warning)',
-                      color: 'var(--color-warning)',
-                      borderRadius: 4,
-                      textDecoration: 'none',
-                      fontSize: 11,
-                      fontWeight: 'bold',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6
-                    }}
-                  >
-                    <Sparkles size={13} /> TRY DEMO
-                  </Link>
 
                   <button
                     type="button"
@@ -1272,26 +1280,6 @@ export default function Login() {
                   >
                     &larr; BACK
                   </button>
-
-                  <Link
-                    to="/demo"
-                    style={{
-                      padding: '9px 14px',
-                      backgroundColor: 'rgba(234, 179, 8, 0.15)',
-                      border: '1px solid var(--color-warning)',
-                      color: 'var(--color-warning)',
-                      borderRadius: 4,
-                      textDecoration: 'none',
-                      fontSize: 11,
-                      fontWeight: 'bold',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <Sparkles size={13} /> TRY DEMO
-                  </Link>
 
                   <button
                     type="submit"
