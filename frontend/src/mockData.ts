@@ -1,8 +1,8 @@
 export const mockCameras = [
-  { id: 'CAM-01', name: 'Northern Perimeter', type: 'RGB + Thermal', zone: 'Zone Alpha', status: 'live' },
-  { id: 'CAM-02', name: 'Main Gate', type: 'RGB Camera', zone: 'Entry Corridor', status: 'live' },
-  { id: 'CAM-03', name: 'Equipment Storage', type: 'Thermal Sensor', zone: 'Storage Area', status: 'offline' },
-  { id: 'CAM-04', name: 'Eastern Wall', type: 'RGB + Thermal', zone: 'Zone Bravo', status: 'live' },
+  { id: 'CAM-01', name: 'Himalayan LAC Patrol', type: 'RGB + Thermal Multi-Spectral', zone: 'Sector 4 - North Border', status: 'live' },
+  { id: 'CAM-02', name: 'Fortified Main Gate', type: 'Optical PTZ 4K Checkpoint', zone: 'Entry Checkpoint Alpha', status: 'live' },
+  { id: 'CAM-03', name: 'Armory & Equipment Depot', type: 'FLIR LWIR Thermal Sensor', zone: 'Depot West Restricted', status: 'live' },
+  { id: 'CAM-04', name: 'Eastern Ridge Pass', type: 'UAV Aerial Tactical Recon', zone: 'Sector 2 - High Ridge', status: 'live' },
 ];
 
 export const mockAlerts = [

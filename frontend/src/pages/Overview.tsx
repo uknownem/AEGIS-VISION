@@ -81,23 +81,32 @@ export default function Overview() {
       
       {/* Cameras Grid */}
       <div className="grid-cameras">
-        {mockCameras.map((cam, idx) => (
-          <Link to={`/dashboard/camera/${cam.id}`} key={cam.id} style={{ textDecoration: 'none', color: 'inherit' }}>
-            <div className="card" style={{ padding: 0, overflow: 'hidden', height: '100%', transition: 'border-color 0.2s, transform 0.2s', cursor: 'pointer' }}>
-              <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--color-surface)' }}>
-                <div>
-                  <h4 style={{ color: 'var(--color-accent)', fontSize: 14 }}>{cam.id} // {cam.name}</h4>
-                  <p style={{ fontSize: 12, color: 'var(--color-text-muted)', fontFamily: "'Share Tech Mono', monospace" }}>{cam.zone}</p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', fontSize: 11, fontFamily: "'Share Tech Mono', monospace", color: cam.status === 'live' ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
-                  <span className={`status-dot ${cam.status}`}></span> {cam.status.toUpperCase()}
-                </div>
-              </div>
+        {mockCameras.map((cam, idx) => {
+          // Dedicated high-resolution tactical surveillance cover images for each camera
+          const coverImages: Record<string, string> = {
+            'CAM-01': '/cctv_himalayan_feed.jpg',
+            'CAM-02': '/cam02_main_gate.jpg',
+            'CAM-03': '/thermal_flir_alert.jpg',
+            'CAM-04': '/drone_aerial_recon.jpg'
+          };
+          const imageSrc = coverImages[cam.id] || '/cctv_himalayan_feed.jpg';
 
-              {/* Video Preview Box using CameraThumbnail */}
-              <div style={{ height: 210, backgroundColor: '#060907', position: 'relative', overflow: 'hidden' }}>
-                {cam.status === 'live' ? (
-                  idx === 0 && backendAlive ? (
+          return (
+            <Link to={`/dashboard/camera/${cam.id}`} key={cam.id} style={{ textDecoration: 'none', color: 'inherit' }}>
+              <div className="card" style={{ padding: 0, overflow: 'hidden', height: '100%', transition: 'border-color 0.2s, transform 0.2s', cursor: 'pointer' }}>
+                <div style={{ padding: '12px 18px', borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--color-surface)' }}>
+                  <div>
+                    <h4 style={{ color: 'var(--color-accent)', fontSize: 14 }}>{cam.id} // {cam.name}</h4>
+                    <p style={{ fontSize: 12, color: 'var(--color-text-muted)', fontFamily: "'Share Tech Mono', monospace" }}>{cam.zone}</p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', fontSize: 11, fontFamily: "'Share Tech Mono', monospace", color: cam.status === 'live' ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
+                    <span className={`status-dot ${cam.status}`}></span> {cam.status.toUpperCase()}
+                  </div>
+                </div>
+
+                {/* Video Preview Box using CameraThumbnail with dedicated cover picture */}
+                <div style={{ height: 210, backgroundColor: '#060907', position: 'relative', overflow: 'hidden' }}>
+                  {idx === 0 && backendAlive ? (
                     <img 
                       src="http://localhost:8000/video_feed" 
                       alt="Live feed preview"
@@ -108,30 +117,23 @@ export default function Overview() {
                     <CameraThumbnail 
                       camId={cam.id}
                       zone={cam.zone}
-                      isThermal={cam.type.toLowerCase().includes('thermal') || cam.type.toLowerCase().includes('flir')}
-                      imageSrc={idx === 1 || cam.zone.toLowerCase().includes('north') ? '/cctv_himalayan_feed.jpg' : undefined}
-                      hasDetection={idx === 0 || idx === 1}
-                      hasNonHumanThreat={idx === 1}
-                      nonHumanObject="Armored BMP / Tank"
+                      isThermal={cam.id === 'CAM-03' || cam.type.toLowerCase().includes('thermal')}
+                      imageSrc={imageSrc}
+                      hasDetection={cam.id === 'CAM-01' || cam.id === 'CAM-02' || cam.id === 'CAM-03'}
+                      hasNonHumanThreat={cam.id === 'CAM-01' || cam.id === 'CAM-02'}
+                      nonHumanObject={cam.id === 'CAM-01' ? 'Armored Tank / BMP' : 'Military Transport 8x8'}
                       fps={29.8}
                     />
-                  )
-                ) : (
-                  <div style={{ textAlign: 'center', padding: 20, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ color: 'var(--color-alert)', letterSpacing: 1.5, fontSize: 12, fontFamily: "'Share Tech Mono', monospace", fontWeight: 'bold' }}>
-                      [ SIGNAL OFFLINE ]
-                    </span>
-                    <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>CHECK HARDWARE LINK</p>
-                  </div>
-                )}
+                  )}
 
-                <div style={{ position: 'absolute', bottom: 10, right: 10, fontSize: 11, color: 'var(--color-accent)', backgroundColor: 'rgba(0,0,0,0.75)', padding: '2px 8px', borderRadius: 3, border: '1px solid var(--color-border)', fontFamily: "'Share Tech Mono', monospace", zIndex: 10 }}>
-                  CLICK TO VIEW STREAM &rarr;
+                  <div style={{ position: 'absolute', bottom: 10, right: 10, fontSize: 11, color: 'var(--color-accent)', backgroundColor: 'rgba(0,0,0,0.75)', padding: '2px 8px', borderRadius: 3, border: '1px solid var(--color-border)', fontFamily: "'Share Tech Mono', monospace", zIndex: 10 }}>
+                    CLICK TO VIEW STREAM &rarr;
+                  </div>
                 </div>
               </div>
-            </div>
-          </Link>
-        ))}
+            </Link>
+          );
+        })}
       </div>
     </div>
   );
