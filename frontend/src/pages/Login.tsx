@@ -90,6 +90,8 @@ export default function Login() {
 
   const [authError, setAuthError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [rememberCredentials, setRememberCredentials] = useState(true);
+  const [hasSavedCreds, setHasSavedCreds] = useState(false);
 
   // Selected Military Base Location
   const [selectedBase, setSelectedBase] = useState<MilitaryBase>(MILITARY_BASES[0]);
@@ -104,6 +106,48 @@ export default function Login() {
 
   // Active step inside setup
   const [activeStep, setActiveStep] = useState<'CREDENTIALS' | 'LOCATION' | 'CAMERAS'>('CREDENTIALS');
+
+  // Load Saved Credentials on Component Mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('aegis_saved_credentials') || localStorage.getItem('aegis_session');
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.serviceId) setServiceId(data.serviceId);
+        if (data.operatorName) {
+          const rawName = data.operatorName.replace(/^(Subedar Major|Subedar|Major|Colonel|Captain|Havildar)\s+/i, '');
+          setOperatorName(rawName);
+        }
+        if (data.passcode) {
+          setPasscode(data.passcode);
+          setConfirmPasscode(data.passcode);
+        }
+        if (data.clearanceLevel) setClearanceLevel(data.clearanceLevel);
+        if (data.unit) setRegUnit(data.unit);
+        if (data.rank) setRegRank(data.rank);
+        if (data.phone) setRegPhone(data.phone);
+        if (data.base && data.base.id) {
+          const match = MILITARY_BASES.find(b => b.id === data.base.id);
+          if (match) setSelectedBase(match);
+        }
+        if (typeof data.webcamEnabled === 'boolean') setWebcamEnabled(data.webcamEnabled);
+        if (data.ipCameraUrl) setIpCameraUrl(data.ipCameraUrl);
+        setHasSavedCreds(true);
+      }
+    } catch (e) {
+      console.warn('Could not load saved credentials:', e);
+    }
+  }, []);
+
+  // Clear Saved Credentials Helper
+  const clearSavedCredentials = () => {
+    localStorage.removeItem('aegis_saved_credentials');
+    setHasSavedCreds(false);
+    setServiceId('');
+    setOperatorName('');
+    setPasscode('');
+    setConfirmPasscode('');
+  };
 
   // Test local webcam stream
   const testWebcam = async () => {
@@ -153,10 +197,13 @@ export default function Login() {
       }
     }
 
+    const finalOperatorName = authMode === 'SIGN_IN' ? (operatorName || 'Subedar Vikram Singh') : `${regRank} ${operatorName}`;
+
     // Save operator session to localStorage
     const sessionData = {
       serviceId,
-      operatorName: authMode === 'SIGN_IN' ? (operatorName || 'Subedar Vikram Singh') : `${regRank} ${operatorName}`,
+      operatorName: finalOperatorName,
+      passcode,
       clearanceLevel,
       unit: regUnit,
       rank: regRank,
@@ -167,7 +214,14 @@ export default function Login() {
       backendStreamEnabled,
       loginTimestamp: new Date().toISOString()
     };
+    
+    // Always persist active session
     localStorage.setItem('aegis_session', JSON.stringify(sessionData));
+
+    // If Remember Credentials is checked, persist permanent credentials
+    if (rememberCredentials) {
+      localStorage.setItem('aegis_saved_credentials', JSON.stringify(sessionData));
+    }
 
     // Unlock audio context for immediate siren readiness
     tacticalSiren.initContext();
@@ -693,6 +747,43 @@ export default function Login() {
                         }}
                       />
                     </div>
+                  )}
+                </div>
+
+                {/* Remember Credentials Option & Status Banner */}
+                <div style={{
+                  padding: '8px 10px',
+                  backgroundColor: 'rgba(0,0,0,0.4)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 4,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: 11
+                }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', color: 'var(--color-accent)' }}>
+                    <input
+                      type="checkbox"
+                      checked={rememberCredentials}
+                      onChange={(e) => setRememberCredentials(e.target.checked)}
+                    />
+                    REMEMBER CREDENTIALS & SENSORS ON THIS TERMINAL
+                  </label>
+                  {hasSavedCreds && (
+                    <button
+                      type="button"
+                      onClick={clearSavedCredentials}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--color-text-muted)',
+                        cursor: 'pointer',
+                        fontSize: 10,
+                        textDecoration: 'underline'
+                      }}
+                    >
+                      Clear Saved
+                    </button>
                   )}
                 </div>
 
