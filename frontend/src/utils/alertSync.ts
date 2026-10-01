@@ -176,10 +176,12 @@ class AlertSyncService {
     for (const key of STORAGE_KEYS) {
       try {
         const raw = localStorage.getItem(key);
-        if (raw) {
+        if (raw !== null) {
           const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
+          if (Array.isArray(parsed)) {
+            if (parsed.length > 0) return parsed;
+            // If explicitly set to empty array and no sample flag, return clean []
+            if (parsed.length === 0 && !sampleFlag) return [];
           }
         }
       } catch {}
