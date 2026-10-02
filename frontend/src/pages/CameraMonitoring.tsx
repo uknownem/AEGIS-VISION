@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { mockCameras } from '../mockData';
 import { 
   ArrowLeft, Maximize2, AlertTriangle, ShieldCheck, X, Camera, 
   Eye, VolumeX, ZoomIn, ZoomOut, Siren
@@ -10,13 +9,16 @@ import { visionDetector } from '../utils/visionDetector';
 import { alertSync } from '../utils/alertSync';
 import { API_BASE_URL, WS_BASE_URL } from '../config';
 
+import { cameraManager } from '../utils/cameraManager';
+
 type StreamSource = 'backend' | 'webcam' | 'simulated';
 type VisionMode = 'normal' | 'thermal' | 'nvg' | 'flir';
 
 export default function CameraMonitoring() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const camera = mockCameras.find(c => c.id === id) || mockCameras[0];
+  const allCameras = cameraManager.getCameras();
+  const camera = allCameras.find(c => c.id === id) || allCameras[0];
   
   // Default to High-Definition Tactical Reconnaissance simulation feed
   const [streamSource, setStreamSource] = useState<StreamSource>('simulated');

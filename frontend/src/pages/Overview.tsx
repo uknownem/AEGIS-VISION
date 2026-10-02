@@ -1,15 +1,23 @@
 import { useState, useEffect } from 'react';
-import { mockCameras } from '../mockData';
+import { cameraManager, type CameraItem } from '../utils/cameraManager';
 import { Video, Thermometer, ShieldAlert, AlertTriangle, Activity } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import CameraThumbnail from '../components/CameraThumbnail';
 import { API_BASE_URL } from '../config';
 
 export default function Overview() {
+  const [cameras, setCameras] = useState<CameraItem[]>(() => cameraManager.getCameras());
   const [backendAlive, setBackendAlive] = useState(false);
   const [currentTime, setCurrentTime] = useState(() => new Date().toLocaleTimeString());
 
   useEffect(() => {
+    const handleCamerasUpdate = () => {
+      setCameras(cameraManager.getCameras());
+    };
+
+    window.addEventListener('aegis_cameras_updated', handleCamerasUpdate);
+    window.addEventListener('storage', handleCamerasUpdate);
+
     // Check if backend is alive
     const checkBackend = async () => {
       try {
@@ -32,6 +40,8 @@ export default function Overview() {
     const timeInterval = setInterval(() => setCurrentTime(new Date().toLocaleTimeString()), 1000);
 
     return () => {
+      window.removeEventListener('aegis_cameras_updated', handleCamerasUpdate);
+      window.removeEventListener('storage', handleCamerasUpdate);
       clearInterval(interval);
       clearInterval(timeInterval);
     };
@@ -85,7 +95,7 @@ export default function Overview() {
       
       {/* Cameras Grid */}
       <div className="grid-cameras">
-        {mockCameras.map((cam, idx) => {
+        {cameras.map((cam, idx) => {
           // Dedicated high-resolution tactical surveillance cover images for each camera
           const coverImages: Record<string, string> = {
             'CAM-01': '/cctv_himalayan_feed.jpg',

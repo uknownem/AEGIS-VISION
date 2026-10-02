@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { 
   Clock, MapPin, Eye, CheckCircle, Siren, RefreshCw, 
-  Filter, ShieldAlert, PlusCircle, CheckCheck, Trash2, Database, AlertTriangle, X, Radio, Crosshair, UserCheck
+  Filter, ShieldAlert, PlusCircle, CheckCheck, Trash2, Database, AlertTriangle, X, Radio, Crosshair, UserCheck, FileText
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { tacticalSiren } from '../utils/siren';
 import { alertSync, type SecurityAlert, type IncursionType, type ObjectCategory, type ThreatLevel } from '../utils/alertSync';
+import IncidentReportModal from '../components/IncidentReportModal';
 
 export default function AlertCenter() {
   const [alerts, setAlerts] = useState<SecurityAlert[]>([]);
@@ -16,6 +17,8 @@ export default function AlertCenter() {
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
   const [toastMsg, setToastMsg] = useState<string>('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [selectedReportAlert, setSelectedReportAlert] = useState<SecurityAlert | null>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   // Form State for manually creating an incursion alert
   const [newAlertForm, setNewAlertForm] = useState({
@@ -597,6 +600,31 @@ export default function AlertCenter() {
                   <CheckCircle size={14} /> {alert.status === 'RESOLVED' ? 'RESOLVED' : 'RESOLVE'}
                 </button>
 
+                {/* 4. EXPORT AUDIT REPORT */}
+                <button
+                  onClick={() => {
+                    setSelectedReportAlert(alert);
+                    setShowReportModal(true);
+                  }}
+                  title="Export official military PDF incident audit report"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 12px',
+                    fontSize: 12,
+                    fontFamily: "'Share Tech Mono', monospace",
+                    fontWeight: 'bold',
+                    backgroundColor: 'rgba(234, 179, 8, 0.15)',
+                    border: '1px solid var(--color-warning)',
+                    color: 'var(--color-warning)',
+                    borderRadius: 4,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <FileText size={14} /> AUDIT REPORT
+                </button>
+
                 {/* Optional Delete */}
                 <button
                   onClick={() => handleDeleteAlert(alert.id)}
@@ -798,6 +826,13 @@ export default function AlertCenter() {
           </div>
         </div>
       )}
+
+      {/* Incident Audit Report Modal */}
+      <IncidentReportModal
+        alert={selectedReportAlert}
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+      />
     </div>
   );
 }

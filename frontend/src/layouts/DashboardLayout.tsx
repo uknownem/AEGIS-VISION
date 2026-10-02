@@ -3,10 +3,11 @@ import { Outlet, NavLink } from 'react-router-dom';
 import { 
   LayoutDashboard, Video, Map, Bell, Users, BarChart3, Activity, 
   Settings, Crosshair, MapPin, Clock, X, Shield, Key, Volume2, 
-  CheckCircle2, Save, Sparkles
+  CheckCircle2, Save, Sparkles, Wifi
 } from 'lucide-react';
 import { tacticalSiren } from '../utils/siren';
 import { alertSync } from '../utils/alertSync';
+import AddExternalCameraModal from '../components/AddExternalCameraModal';
 
 export default function DashboardLayout() {
   const [timeStr, setTimeStr] = useState(() => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -16,6 +17,7 @@ export default function DashboardLayout() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [showCreditsModal, setShowCreditsModal] = useState(false);
+  const [showAddCameraModal, setShowAddCameraModal] = useState(false);
 
   // Settings State
   const [defconLevel, setDefconLevel] = useState('DEFCON 2');
@@ -172,12 +174,48 @@ export default function DashboardLayout() {
         <div className="top-nav">
           <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
             <span style={{ fontWeight: 'bold', letterSpacing: 2, color: 'var(--color-accent)' }}>AEGIS VISION</span>
-            <span className="badge" style={{ backgroundColor: 'rgba(34, 197, 94, 0.2)', color: 'var(--color-success)', fontSize: 10 }}>
-              {defconLevel} ACTIVE
-            </span>
+            {/* Interactive DEFCON Selector */}
+            <select
+              value={defconLevel}
+              onChange={(e) => {
+                setDefconLevel(e.target.value);
+                alertSync.broadcastNewAlert({
+                  alert_type: 'THERMAL_SIGNATURE_BREACH',
+                  incursion_category: `READINESS CHANGED TO ${e.target.value}`,
+                  object_category: 'THERMAL_HEAT_SOURCE',
+                  target_class: `DEFCON READINESS LEVEL: ${e.target.value}`,
+                  threat_level: e.target.value === 'DEFCON 1' ? 'CRITICAL' : 'HIGH',
+                  confidence: 1.0,
+                  camera_id: 'COMMAND-HQ',
+                  sector: operator.sector,
+                  siren_triggered: e.target.value === 'DEFCON 1' ? 1 : 0,
+                  status: 'ACTIVE',
+                  distance_meters: 0,
+                  notes: `Operator ${operator.name} adjusted defense readiness state to ${e.target.value}`
+                });
+              }}
+              style={{
+                backgroundColor: defconLevel === 'DEFCON 1' ? 'rgba(239, 68, 68, 0.25)' : defconLevel === 'DEFCON 2' ? 'rgba(245, 158, 11, 0.25)' : 'rgba(34, 197, 94, 0.25)',
+                color: defconLevel === 'DEFCON 1' ? 'var(--color-alert)' : defconLevel === 'DEFCON 2' ? '#f59e0b' : 'var(--color-success)',
+                border: `1px solid ${defconLevel === 'DEFCON 1' ? 'var(--color-alert)' : defconLevel === 'DEFCON 2' ? '#f59e0b' : 'var(--color-success)'}`,
+                borderRadius: 4,
+                padding: '3px 8px',
+                fontSize: 10,
+                fontWeight: 'bold',
+                fontFamily: "'Share Tech Mono', monospace",
+                cursor: 'pointer'
+              }}
+              title="Click to change defense readiness level (DEFCON 1-5)"
+            >
+              <option value="DEFCON 5">DEFCON 5 (PEACE / LOW)</option>
+              <option value="DEFCON 4">DEFCON 4 (NORMAL WATCH)</option>
+              <option value="DEFCON 3">DEFCON 3 (ELEVATED GUARD)</option>
+              <option value="DEFCON 2">DEFCON 2 (HIGH READINESS)</option>
+              <option value="DEFCON 1">DEFCON 1 (MAXIMUM COMBAT)</option>
+            </select>
           </div>
           
-          <div style={{ display: 'flex', gap: 24, color: 'var(--color-text-muted)' }}>
+          <div style={{ display: 'flex', gap: 20, color: 'var(--color-text-muted)', alignItems: 'center' }}>
             <NavLink to="/dashboard" end style={({ isActive }) => ({ textDecoration: 'none', color: isActive ? 'var(--color-accent)' : 'inherit', borderBottom: isActive ? '2px solid var(--color-accent)' : 'none', paddingBottom: 5 })}>
               OVERVIEW
             </NavLink>
@@ -187,6 +225,28 @@ export default function DashboardLayout() {
             <NavLink to="/dashboard/zones" style={({ isActive }) => ({ textDecoration: 'none', color: isActive ? 'var(--color-accent)' : 'inherit', borderBottom: isActive ? '2px solid var(--color-accent)' : 'none', paddingBottom: 5 })}>
               UNIT MAP
             </NavLink>
+
+            {/* Quick WiFi / External Camera Pairing Button */}
+            <button
+              onClick={() => setShowAddCameraModal(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '4px 10px',
+                backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                border: '1px solid var(--color-accent)',
+                color: 'var(--color-accent)',
+                borderRadius: 4,
+                fontSize: 11,
+                fontFamily: "'Share Tech Mono', monospace",
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+              title="Add external WiFi or IP camera to system"
+            >
+              <Wifi size={13} /> + PAIR WIFI CAM
+            </button>
             
             {/* Interactive Demo Mode Shortcut */}
             <NavLink 
@@ -592,6 +652,12 @@ export default function DashboardLayout() {
           </div>
         </div>
       )}
+
+      {/* External WiFi / IP Camera Wizard Modal */}
+      <AddExternalCameraModal 
+        isOpen={showAddCameraModal} 
+        onClose={() => setShowAddCameraModal(false)} 
+      />
     </div>
   );
 }
