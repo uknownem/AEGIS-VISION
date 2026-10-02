@@ -691,56 +691,64 @@ export default function CameraMonitoring() {
         </div>
       </div>
 
-      {/* IP Stream URL Input Bar when streamSource === 'ip_wifi' */}
+      {/* IP Stream URL Input Bar & Phone Setup Guide when streamSource === 'ip_wifi' */}
       {streamSource === 'ip_wifi' && (
-        <div style={{
-          marginBottom: 12,
-          padding: '8px 14px',
-          backgroundColor: 'var(--color-surface)',
-          border: '1px solid var(--color-accent)',
-          borderRadius: 4,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          fontSize: 12,
-          fontFamily: "'Share Tech Mono', monospace"
-        }}>
-          <Wifi size={16} color="var(--color-accent)" />
-          <span style={{ color: 'var(--color-accent)', fontWeight: 'bold' }}>PHONE / IP STREAM URL:</span>
-          <input
-            type="text"
-            value={ipStreamUrl}
-            onChange={(e) => {
-              setIpStreamUrl(e.target.value);
-              setIpImageError(false);
-            }}
-            placeholder="http://192.168.1.105:8080/video"
-            style={{
-              flex: 1,
-              padding: '4px 10px',
-              fontSize: 12,
-              fontFamily: "'Share Tech Mono', monospace",
-              backgroundColor: '#000',
-              color: '#fff',
-              border: '1px solid var(--color-border)',
-              borderRadius: 3
-            }}
-          />
-          <button
-            onClick={() => setIpImageError(false)}
-            style={{
-              padding: '4px 10px',
-              backgroundColor: 'var(--color-accent)',
-              color: '#000',
-              border: 'none',
-              borderRadius: 3,
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              fontSize: 11
-            }}
-          >
-            CONNECT FEED
-          </button>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{
+            padding: '8px 14px',
+            backgroundColor: 'var(--color-surface)',
+            border: '1px solid var(--color-accent)',
+            borderRadius: 4,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            fontSize: 12,
+            fontFamily: "'Share Tech Mono', monospace",
+            flexWrap: 'wrap'
+          }}>
+            <Wifi size={16} color="var(--color-accent)" />
+            <span style={{ color: 'var(--color-accent)', fontWeight: 'bold' }}>PHONE / IP STREAM URL:</span>
+            <input
+              type="text"
+              value={ipStreamUrl}
+              onChange={(e) => {
+                setIpStreamUrl(e.target.value);
+                setIpImageError(false);
+              }}
+              placeholder="http://192.168.1.105:8080/video"
+              style={{
+                flex: 1,
+                minWidth: 240,
+                padding: '5px 10px',
+                fontSize: 12,
+                fontFamily: "'Share Tech Mono', monospace",
+                backgroundColor: '#000',
+                color: '#fff',
+                border: '1px solid var(--color-border)',
+                borderRadius: 3
+              }}
+            />
+            <button
+              onClick={() => setIpImageError(false)}
+              style={{
+                padding: '5px 12px',
+                backgroundColor: 'var(--color-accent)',
+                color: '#000',
+                border: 'none',
+                borderRadius: 3,
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                fontSize: 11
+              }}
+            >
+              CONNECT FEED
+            </button>
+          </div>
+
+          {/* Quick Guide Pill */}
+          <div style={{ marginTop: 6, padding: '6px 12px', backgroundColor: 'rgba(59, 130, 246, 0.08)', border: '1px dashed var(--color-accent)', borderRadius: 4, fontSize: 11, color: 'var(--color-text-muted)', fontFamily: "'Share Tech Mono', monospace" }}>
+            💡 <strong>PHONE WEBCAM SETUP:</strong> 1) Connect phone to same WiFi → 2) Open <strong>IP Webcam</strong> app on phone & tap <em>Start Server</em> → 3) Copy phone IP address into box above (e.g. <code>http://192.168.29.142:8080/video</code>).
+          </div>
         </div>
       )}
 

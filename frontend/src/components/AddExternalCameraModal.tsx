@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Wifi, X, ShieldCheck } from 'lucide-react';
+import { Wifi, X, ShieldCheck, Smartphone, ChevronDown, ChevronUp } from 'lucide-react';
 import { cameraManager, type CameraItem } from '../utils/cameraManager';
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
 }
 
 export default function AddExternalCameraModal({ isOpen, onClose, onCameraAdded }: Props) {
-  const [name, setName] = useState('WiFi Surveillance Unit Alpha');
+  const [name, setName] = useState('WiFi Phone Sentry Unit Alpha');
   const [zone, setZone] = useState('Sector 1 - Northern Perimeter');
   const [streamType, setStreamType] = useState<'ip_wifi' | 'rtsp' | 'webcam'>('ip_wifi');
   const [ipAddress, setIpAddress] = useState('192.168.1.105');
@@ -17,6 +17,7 @@ export default function AddExternalCameraModal({ isOpen, onClose, onCameraAdded 
   const [rtspUrl, setRtspUrl] = useState('rtsp://admin:password@192.168.1.105:554/live/ch0');
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
+  const [showPhoneGuide, setShowPhoneGuide] = useState(true);
 
   if (!isOpen) return null;
 
@@ -25,7 +26,7 @@ export default function AddExternalCameraModal({ isOpen, onClose, onCameraAdded 
     setTestResult(null);
     setTimeout(() => {
       setTesting(false);
-      setTestResult('✅ WIFI SENSOR ONLINE // STREAM VERIFIED (LATENCY: 14MS)');
+      setTestResult('✅ PHONE / WIFI SENSOR ONLINE // STREAM VERIFIED (LATENCY: 14MS)');
     }, 1200);
   };
 
@@ -35,7 +36,7 @@ export default function AddExternalCameraModal({ isOpen, onClose, onCameraAdded 
 
     const newCam = cameraManager.addExternalCamera({
       name,
-      type: streamType === 'ip_wifi' ? 'External WiFi / IP Sensor' : streamType === 'rtsp' ? 'RTSP Security Stream' : 'Local USB / Wireless Cam',
+      type: streamType === 'ip_wifi' ? 'External Phone WiFi / IP Sensor' : streamType === 'rtsp' ? 'RTSP Security Stream' : 'Local USB / Wireless Cam',
       zone,
       streamType,
       ipAddress: streamType === 'ip_wifi' ? ipAddress : undefined,
@@ -50,7 +51,7 @@ export default function AddExternalCameraModal({ isOpen, onClose, onCameraAdded 
 
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div className="card animate-fade-in" style={{ maxWidth: 520, width: '100%', borderColor: 'var(--color-accent)', position: 'relative' }}>
+      <div className="card animate-fade-in" style={{ maxWidth: 560, width: '100%', borderColor: 'var(--color-accent)', position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
         <button
           onClick={onClose}
           style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}
@@ -58,12 +59,65 @@ export default function AddExternalCameraModal({ isOpen, onClose, onCameraAdded 
           <X size={18} />
         </button>
 
-        <h3 style={{ color: 'var(--color-accent)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Wifi size={20} /> PAIR EXTERNAL WIFI / IP CAMERA
+        <h3 style={{ color: 'var(--color-accent)', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Wifi size={20} /> PAIR EXTERNAL PHONE / IP WIFI CAMERA
         </h3>
-        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 16 }}>
-          Connect an external wireless security camera, WiFi camera, RTSP IP stream, or local network node to AEGIS-VISION.
+        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginBottom: 14 }}>
+          Connect an external smartphone camera (via IP Webcam), WiFi security camera, or RTSP stream to AEGIS-VISION.
         </p>
+
+        {/* Step-by-Step Phone Setup Guide Box */}
+        <div style={{
+          backgroundColor: 'rgba(59, 130, 246, 0.08)',
+          border: '1px solid var(--color-accent)',
+          borderRadius: 6,
+          padding: 12,
+          marginBottom: 16
+        }}>
+          <button
+            type="button"
+            onClick={() => setShowPhoneGuide(prev => !prev)}
+            style={{
+              width: '100%',
+              background: 'none',
+              border: 'none',
+              color: 'var(--color-accent)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              fontSize: 12,
+              padding: 0
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Smartphone size={16} /> 📱 HOW TO USE YOUR PHONE AS A WIFI CAMERA (STEP-BY-STEP)
+            </span>
+            {showPhoneGuide ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+
+          {showPhoneGuide && (
+            <div style={{ marginTop: 10, fontSize: 11, color: 'var(--color-text)', lineHeight: 1.6, fontFamily: "'Share Tech Mono', monospace", borderTop: '1px dashed rgba(59, 130, 246, 0.3)', paddingTop: 10 }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                <span style={{ color: 'var(--color-accent)', fontWeight: 'bold' }}>STEP 1:</span>
+                <span>Connect your <strong>Phone</strong> and <strong>Laptop</strong> to the same WiFi network (or Phone Hotspot).</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                <span style={{ color: 'var(--color-accent)', fontWeight: 'bold' }}>STEP 2:</span>
+                <span>Download app on phone: <strong>IP Webcam</strong> (Android) or <strong>Live-Reporter</strong> (iOS).</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                <span style={{ color: 'var(--color-accent)', fontWeight: 'bold' }}>STEP 3:</span>
+                <span>Open app & tap <strong>"Start Server"</strong>. Note the IP address shown on phone (e.g. <code>192.168.1.105:8080</code>).</span>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <span style={{ color: 'var(--color-accent)', fontWeight: 'bold' }}>STEP 4:</span>
+                <span>Type that IP below, click <strong>REGISTER CAMERA</strong>, and watch your phone feed live with AI object detection!</span>
+              </div>
+            </div>
+          )}
+        </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
@@ -73,7 +127,7 @@ export default function AddExternalCameraModal({ isOpen, onClose, onCameraAdded 
               value={name}
               onChange={e => setName(e.target.value)}
               required
-              placeholder="e.g. WiFi Sentry Post 03"
+              placeholder="e.g. WiFi Phone Sentry Post 01"
               style={{ fontSize: 13 }}
             />
           </div>
@@ -100,9 +154,9 @@ export default function AddExternalCameraModal({ isOpen, onClose, onCameraAdded 
                 onChange={e => setStreamType(e.target.value as any)}
                 style={{ width: '100%', padding: '9px', backgroundColor: 'var(--color-surface)', color: '#fff', border: '1px solid var(--color-border)', borderRadius: 4 }}
               >
-                <option value="ip_wifi">WiFi / Local IP (HTTP/MJPEG)</option>
-                <option value="rtsp">RTSP IP Stream</option>
-                <option value="webcam">Local Web Camera / Wireless Dongle</option>
+                <option value="ip_wifi">📱 WiFi Phone / Local IP Camera</option>
+                <option value="rtsp">📹 RTSP Security Stream</option>
+                <option value="webcam">💻 Laptop Webcam / USB Cam</option>
               </select>
             </div>
           </div>
@@ -110,12 +164,12 @@ export default function AddExternalCameraModal({ isOpen, onClose, onCameraAdded 
           {streamType === 'ip_wifi' && (
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
               <div>
-                <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>WIFI IP ADDRESS</label>
+                <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>PHONE / WIFI IP ADDRESS</label>
                 <input
                   type="text"
                   value={ipAddress}
                   onChange={e => setIpAddress(e.target.value)}
-                  placeholder="192.168.1.105"
+                  placeholder="e.g. 192.168.1.105 or 192.168.29.142"
                   style={{ fontSize: 13 }}
                 />
               </div>
