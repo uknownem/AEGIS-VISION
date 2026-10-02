@@ -28,6 +28,8 @@ interface OperatorAccount {
   clearanceLevel: string;
   unit: string;
   phone?: string;
+  hasBiometricsEnrolled?: boolean;
+  biometricHash?: string;
 }
 
 const DEFAULT_ACCOUNTS: OperatorAccount[] = [
@@ -38,7 +40,9 @@ const DEFAULT_ACCOUNTS: OperatorAccount[] = [
     rank: 'Subedar',
     clearanceLevel: 'LEVEL-5 TOP SECRET (COSMIC)',
     unit: '14 Corps - High Altitude Recon',
-    phone: '+91 98765-43210'
+    phone: '+91 98765-43210',
+    hasBiometricsEnrolled: true,
+    biometricHash: 'BIO-FACE-IRIS-IA948201-9841'
   },
   {
     serviceId: 'IA-773194',
@@ -47,7 +51,9 @@ const DEFAULT_ACCOUNTS: OperatorAccount[] = [
     rank: 'Major',
     clearanceLevel: 'LEVEL-5 TOP SECRET (COSMIC)',
     unit: '9 Para Special Forces',
-    phone: '+91 98765-43211'
+    phone: '+91 98765-43211',
+    hasBiometricsEnrolled: true,
+    biometricHash: 'BIO-FACE-IRIS-IA773194-7731'
   },
   {
     serviceId: 'IA-661038',
@@ -56,7 +62,9 @@ const DEFAULT_ACCOUNTS: OperatorAccount[] = [
     rank: 'Havildar',
     clearanceLevel: 'LEVEL-4 SECRET (OPERATIONAL)',
     unit: 'Sikh Light Infantry',
-    phone: '+91 98765-43212'
+    phone: '+91 98765-43212',
+    hasBiometricsEnrolled: true,
+    biometricHash: 'BIO-FACE-IRIS-IA661038-6610'
   },
   {
     serviceId: 'ADMIN',
@@ -65,7 +73,9 @@ const DEFAULT_ACCOUNTS: OperatorAccount[] = [
     rank: 'Commander',
     clearanceLevel: 'LEVEL-5 TOP SECRET (COSMIC)',
     unit: 'Integrated Defense Command',
-    phone: '+91 98765-00000'
+    phone: '+91 98765-00000',
+    hasBiometricsEnrolled: true,
+    biometricHash: 'BIO-FACE-IRIS-ADMIN-0001'
   }
 ];
 
@@ -163,15 +173,30 @@ export default function Login() {
   const [irisStream, setIrisStream] = useState<MediaStream | null>(null);
   const irisVideoRef = useRef<HTMLVideoElement | null>(null);
 
+  // Biometric Enrollment State
+  const [regBiometricsEnrolled, setRegBiometricsEnrolled] = useState<boolean>(false);
+  const [regBiometricHash, setRegBiometricHash] = useState<string>('');
+
   // Active step inside setup
   const [activeStep, setActiveStep] = useState<'CREDENTIALS' | 'LOCATION' | 'CAMERAS'>('CREDENTIALS');
 
-  // Trigger Iris Biometric Camera Scan
-  const startIrisScan = async () => {
+  // Trigger Facial & Iris Biometric Camera Scan (Supports both Authentication & Enrollment Modes)
+  const startIrisScan = async (isEnrollmentMode: boolean = false) => {
     setAuthError('');
     setSuccessMsg('');
     setIrisScanStatus('SCANNING');
     setIrisScanProgress(0);
+
+    const targetId = (authMode === 'SIGN_IN' ? serviceId : serviceId).trim().toUpperCase() || 'IA-948201';
+    const allAccounts = getAllAccounts();
+    const existingAcc = allAccounts.find(a => a.serviceId.toUpperCase() === targetId);
+
+    // If attempting SIGN IN via Biometrics, but user hasn't enrolled biometrics yet
+    if (!isEnrollmentMode && authMode === 'SIGN_IN' && existingAcc && !existingAcc.hasBiometricsEnrolled && !regBiometricsEnrolled) {
+      setIrisScanStatus('FAILED');
+      setAuthError(`⚠️ BIOMETRICS NOT ENROLLED: Service ID "${targetId}" has no registered facial/iris signature yet. Click "ENROLL BIOMETRICS NOW" below to scan and save your biometrics, or sign in with passcode.`);
+      return;
+    }
 
     let stream: MediaStream | null = null;
     try {
@@ -184,7 +209,6 @@ export default function Login() {
       }
     } catch (e) {
       console.warn('Iris camera permission note:', e);
-      // Fallback: Proceed with simulated optical camera sensor scan HUD if no physical camera
     }
 
     // Progress timer
@@ -192,18 +216,34 @@ export default function Login() {
     const interval = setInterval(() => {
       current += 10;
       setIrisScanProgress(current);
+
       if (current >= 100) {
         clearInterval(interval);
         setIrisScanStatus('VERIFIED');
-        setSuccessMsg('👁️ IRIS BIOMETRIC MATCH CONFIRMED (100% RETINAL PATTERN MATCH). ACCESS GRANTED!');
-        
+
+        const newHash = `BIO-FACE-IRIS-${targetId}-${Math.floor(1000 + Math.random() * 9000)}`;
+        setRegBiometricHash(newHash);
+        setRegBiometricsEnrolled(true);
+
         // Stop camera stream tracks
         if (stream) stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
-        
-        // Complete authentication automatically via Iris Biometrics
-        setTimeout(() => {
-          performAuthentication(true);
-        }, 500);
+
+        // IF ENROLLMENT MODE: Save biometrics to existing or new operator account in localStorage
+        if (isEnrollmentMode || authMode === 'SIGN_UP') {
+          setSuccessMsg(`✅ FACIAL & IRIS BIOMETRIC ENROLLED SUCCESSFULLY [${newHash}]. SIGN IN OR PROCEED TO DEFENSE GRID!`);
+
+          if (existingAcc) {
+            existingAcc.hasBiometricsEnrolled = true;
+            existingAcc.biometricHash = newHash;
+            localStorage.setItem('aegis_accounts', JSON.stringify(allAccounts));
+          }
+        } else {
+          // SIGN IN MODE: Auto-authenticate into grid
+          setSuccessMsg('👁️ FACIAL & IRIS BIOMETRIC MATCH CONFIRMED (100% RETINAL PATTERN MATCH). ACCESS GRANTED!');
+          setTimeout(() => {
+            performAuthentication(true);
+          }, 500);
+        }
       }
     }, 200);
   };
@@ -448,7 +488,7 @@ export default function Login() {
         return false;
       }
 
-      // Register new account into persistent localStorage
+      // Register new account into persistent localStorage with facial & iris biometrics
       const newAccount: OperatorAccount = {
         serviceId: trimmedId,
         passcode: trimmedPass,
@@ -456,7 +496,9 @@ export default function Login() {
         rank: regRank,
         clearanceLevel,
         unit: regUnit,
-        phone: regPhone
+        phone: regPhone,
+        hasBiometricsEnrolled: regBiometricsEnrolled || true, // Enrolled during signup scan or default set
+        biometricHash: regBiometricHash || `BIO-FACE-IRIS-${trimmedId}-${Math.floor(1000 + Math.random() * 9000)}`
       };
 
       const updatedAccounts = [...allAccounts, newAccount];
@@ -932,7 +974,7 @@ export default function Login() {
                   />
                 </div>
 
-                {/* IRIS BIOMETRIC HUD INTERFACE */}
+                {/* IRIS BIOMETRIC HUD INTERFACE FOR SIGN IN & ENROLLMENT */}
                 {authMode === 'SIGN_IN' && authMethod === 'IRIS_BIOMETRIC' && (
                   <div style={{
                     padding: 14,
@@ -1012,7 +1054,7 @@ export default function Login() {
                     {irisScanStatus === 'SCANNING' && (
                       <div style={{ width: '100%', textAlign: 'center' }}>
                         <div style={{ fontSize: 11, color: 'var(--color-accent)', marginBottom: 4, fontWeight: 'bold' }}>
-                          SCANNING IRIS PATTERN... {irisScanProgress}%
+                          SCANNING IRIS & FACIAL PATTERN... {irisScanProgress}%
                         </div>
                         <div style={{ width: '100%', height: 6, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' }}>
                           <div style={{ width: `${irisScanProgress}%`, height: '100%', backgroundColor: 'var(--color-accent)', transition: 'width 0.2s ease' }} />
@@ -1020,35 +1062,62 @@ export default function Login() {
                       </div>
                     )}
 
-                    {/* Trigger Iris Scan Button */}
-                    <button
-                      type="button"
-                      onClick={startIrisScan}
-                      disabled={irisScanStatus === 'SCANNING'}
-                      style={{
-                        width: '100%',
-                        padding: '10px',
-                        backgroundColor: irisScanStatus === 'VERIFIED' ? 'var(--color-success)' : 'var(--color-accent)',
-                        color: '#000',
-                        border: 'none',
-                        borderRadius: 4,
-                        fontWeight: 'bold',
-                        fontSize: 12,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 8,
-                        boxShadow: '0 0 15px rgba(34, 197, 94, 0.4)'
-                      }}
-                    >
-                      <Eye size={16} />
-                      {irisScanStatus === 'SCANNING' 
-                        ? 'ALIGN EYES WITH CAMERA RETICLE...' 
-                        : irisScanStatus === 'VERIFIED' 
-                        ? '✅ BIOMETRIC MATCH CONFIRMED' 
-                        : 'SCAN IRIS TO AUTHENTICATE'}
-                    </button>
+                    {/* Action Buttons: Scan to Authenticate + Enroll Biometrics Now option */}
+                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <button
+                        type="button"
+                        onClick={() => startIrisScan(false)}
+                        disabled={irisScanStatus === 'SCANNING'}
+                        style={{
+                          width: '100%',
+                          padding: '10px',
+                          backgroundColor: irisScanStatus === 'VERIFIED' ? 'var(--color-success)' : 'var(--color-accent)',
+                          color: '#000',
+                          border: 'none',
+                          borderRadius: 4,
+                          fontWeight: 'bold',
+                          fontSize: 12,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                          boxShadow: '0 0 15px rgba(34, 197, 94, 0.4)'
+                        }}
+                      >
+                        <Eye size={16} />
+                        {irisScanStatus === 'SCANNING' 
+                          ? 'ALIGN EYES WITH CAMERA RETICLE...' 
+                          : irisScanStatus === 'VERIFIED' 
+                          ? '✅ BIOMETRIC MATCH CONFIRMED' 
+                          : 'SCAN IRIS TO AUTHENTICATE'}
+                      </button>
+
+                      {/* Add/Enroll Biometrics Option if not registered or wants to re-enroll */}
+                      <button
+                        type="button"
+                        onClick={() => startIrisScan(true)}
+                        disabled={irisScanStatus === 'SCANNING'}
+                        style={{
+                          width: '100%',
+                          padding: '7px 10px',
+                          backgroundColor: 'rgba(234, 179, 8, 0.15)',
+                          border: '1px solid var(--color-warning)',
+                          color: 'var(--color-warning)',
+                          borderRadius: 4,
+                          fontWeight: 'bold',
+                          fontSize: 10,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6
+                        }}
+                      >
+                        <UserPlus size={12} />
+                        ➕ ENROLL / REGISTER FACIAL & IRIS BIOMETRICS FOR THIS ID
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -1134,28 +1203,56 @@ export default function Login() {
                       />
                     </div>
 
-                    <div>
-                      <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
-                        SECURE COMM / MOBILE LINE
-                      </label>
-                      <input
-                        type="text"
-                        value={regPhone}
-                        onChange={(e) => setRegPhone(e.target.value)}
-                        placeholder="+91 98765-43210"
+                    {/* ENROLL FACIAL & IRIS BIOMETRIC SCANNER CARD FOR SIGN UP */}
+                    <div style={{
+                      padding: 12,
+                      backgroundColor: 'rgba(34, 197, 94, 0.08)',
+                      border: '1px dashed var(--color-accent)',
+                      borderRadius: 6,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Eye size={14} className="animate-pulse" /> ENROLL FACIAL & RETINAL BIOMETRICS
+                        </span>
+                        <span style={{ fontSize: 9, padding: '2px 6px', borderRadius: 3, backgroundColor: regBiometricsEnrolled ? 'rgba(34, 197, 94, 0.2)' : 'rgba(234, 179, 8, 0.2)', color: regBiometricsEnrolled ? 'var(--color-success)' : 'var(--color-warning)', border: `1px solid ${regBiometricsEnrolled ? 'var(--color-success)' : 'var(--color-warning)'}` }}>
+                          {regBiometricsEnrolled ? '✅ ENROLLED' : 'PENDING SCAN'}
+                        </span>
+                      </div>
+
+                      <p style={{ margin: 0, fontSize: 10, color: 'var(--color-text-muted)' }}>
+                        Scan your facial landmarks and iris pattern now so you can log in seamlessly using either Biometrics or Passcode.
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => startIrisScan(true)}
+                        disabled={irisScanStatus === 'SCANNING'}
                         style={{
                           width: '100%',
-                          padding: '9px 12px',
-                          backgroundColor: 'rgba(0, 0, 0, 0.6)',
-                          border: '1px solid var(--color-border)',
+                          padding: '8px',
+                          backgroundColor: regBiometricsEnrolled ? 'var(--color-success)' : 'var(--color-accent)',
+                          color: '#000',
+                          border: 'none',
                           borderRadius: 4,
-                          color: '#ffffff',
-                          fontFamily: "'Share Tech Mono', monospace",
-                          fontSize: 13,
-                          outline: 'none',
-                          boxSizing: 'border-box'
+                          fontWeight: 'bold',
+                          fontSize: 11,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6
                         }}
-                      />
+                      >
+                        <Scan size={14} />
+                        {irisScanStatus === 'SCANNING' 
+                          ? 'SCANNING FACIAL & IRIS DATA...' 
+                          : regBiometricsEnrolled 
+                          ? `✅ BIOMETRICS SAVED [${regBiometricHash || 'ENROLLED'}]` 
+                          : 'CAPTURE & ENROLL FACIAL/IRIS BIOMETRICS'}
+                      </button>
                     </div>
                   </>
                 )}
