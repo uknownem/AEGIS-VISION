@@ -173,9 +173,10 @@ export default function Login() {
   const [irisStream, setIrisStream] = useState<MediaStream | null>(null);
   const irisVideoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Biometric Enrollment State
+  // Biometric Enrollment & Match Simulation State
   const [regBiometricsEnrolled, setRegBiometricsEnrolled] = useState<boolean>(false);
   const [regBiometricHash, setRegBiometricHash] = useState<string>('');
+  const [simulatedMatchMode, setSimulatedMatchMode] = useState<'MATCHED' | 'MISMATCHED'>('MATCHED');
 
   // Active step inside setup
   const [activeStep, setActiveStep] = useState<'CREDENTIALS' | 'LOCATION' | 'CAMERAS'>('CREDENTIALS');
@@ -187,14 +188,28 @@ export default function Login() {
     setIrisScanStatus('SCANNING');
     setIrisScanProgress(0);
 
-    const targetId = (authMode === 'SIGN_IN' ? serviceId : serviceId).trim().toUpperCase() || 'IA-948201';
+    const targetId = serviceId.trim().toUpperCase();
     const allAccounts = getAllAccounts();
     const existingAcc = allAccounts.find(a => a.serviceId.toUpperCase() === targetId);
 
-    // If attempting SIGN IN via Biometrics, but user hasn't enrolled biometrics yet
+    // 1. Check if Military Service ID is provided
+    if (!targetId && !isEnrollmentMode) {
+      setIrisScanStatus('FAILED');
+      setAuthError('🚨 ACCESS REJECTED: Please enter your Military Service ID / Army Number first.');
+      return;
+    }
+
+    // 2. Check if Military Service ID exists in directory
+    if (!isEnrollmentMode && authMode === 'SIGN_IN' && !existingAcc) {
+      setIrisScanStatus('FAILED');
+      setAuthError(`🚨 ACCESS DENIED: Service ID "${targetId}" is NOT registered in the defense database. Biometric validation failed.`);
+      return;
+    }
+
+    // 3. Check if user has enrolled biometrics
     if (!isEnrollmentMode && authMode === 'SIGN_IN' && existingAcc && !existingAcc.hasBiometricsEnrolled && !regBiometricsEnrolled) {
       setIrisScanStatus('FAILED');
-      setAuthError(`⚠️ BIOMETRICS NOT ENROLLED: Service ID "${targetId}" has no registered facial/iris signature yet. Click "ENROLL BIOMETRICS NOW" below to scan and save your biometrics, or sign in with passcode.`);
+      setAuthError(`⚠️ BIOMETRICS NOT ENROLLED: Service ID "${targetId}" has no registered facial/iris signature yet. Click "ENROLL BIOMETRICS NOW" below to register your scan, or sign in with passcode.`);
       return;
     }
 
@@ -219,31 +234,39 @@ export default function Login() {
 
       if (current >= 100) {
         clearInterval(interval);
-        setIrisScanStatus('VERIFIED');
-
-        const newHash = `BIO-FACE-IRIS-${targetId}-${Math.floor(1000 + Math.random() * 9000)}`;
-        setRegBiometricHash(newHash);
-        setRegBiometricsEnrolled(true);
-
         // Stop camera stream tracks
         if (stream) stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
 
-        // IF ENROLLMENT MODE: Save biometrics to existing or new operator account in localStorage
+        // ENROLLMENT MODE: Capture and save facial & iris signature bound to targetId
         if (isEnrollmentMode || authMode === 'SIGN_UP') {
-          setSuccessMsg(`✅ FACIAL & IRIS BIOMETRIC ENROLLED SUCCESSFULLY [${newHash}]. SIGN IN OR PROCEED TO DEFENSE GRID!`);
+          const newHash = `BIO-FACE-IRIS-${targetId || 'OP'}-${Math.floor(1000 + Math.random() * 9000)}`;
+          setRegBiometricHash(newHash);
+          setRegBiometricsEnrolled(true);
+          setIrisScanStatus('VERIFIED');
+          setSuccessMsg(`✅ FACIAL & IRIS BIOMETRICS ENROLLED AND LINKED TO SERVICE ID "${targetId}".`);
 
           if (existingAcc) {
             existingAcc.hasBiometricsEnrolled = true;
             existingAcc.biometricHash = newHash;
             localStorage.setItem('aegis_accounts', JSON.stringify(allAccounts));
           }
-        } else {
-          // SIGN IN MODE: Auto-authenticate into grid
-          setSuccessMsg('👁️ FACIAL & IRIS BIOMETRIC MATCH CONFIRMED (100% RETINAL PATTERN MATCH). ACCESS GRANTED!');
-          setTimeout(() => {
-            performAuthentication(true);
-          }, 500);
+          return;
         }
+
+        // SIGN IN AUTHENTICATION MODE: Verify live scan against enrolled biometrics & simulated match toggle
+        if (simulatedMatchMode === 'MISMATCHED') {
+          setIrisScanStatus('FAILED');
+          tacticalSiren.playTestSiren(400); // Trigger quick alert sound
+          setAuthError(`🚨 ACCESS DENIED (BIOMETRIC MISMATCH): Live facial & retinal scan does NOT match enrolled signature for Military Service ID "${targetId}". Terminal access rejected!`);
+          return;
+        }
+
+        // BIOMETRIC SCAN MATCHED 100%!
+        setIrisScanStatus('VERIFIED');
+        setSuccessMsg(`👁️ FACIAL & RETINAL BIOMETRIC MATCH CONFIRMED (100% MATCH FOR ID ${targetId}). ACCESS GRANTED!`);
+        setTimeout(() => {
+          performAuthentication(true);
+        }, 500);
       }
     }, 200);
   };
@@ -984,12 +1007,64 @@ export default function Login() {
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: 12,
+                    gap: 10,
                     position: 'relative',
-                    boxShadow: '0 0 25px rgba(34, 197, 94, 0.2)'
+                    boxShadow: '0 0 25px rgba(34, 197, 94, 0.2)',
+                    width: '100%',
+                    boxSizing: 'border-box'
                   }}>
                     <div style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 6 }}>
                       <Scan size={15} className="animate-spin" /> HOLOGRAPHIC RETINAL & IRIS OPTICAL SCANNER
+                    </div>
+
+                    {/* Biometric Scan Simulation Mode Selector (for testing Authorized vs Mismatched subjects) */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '4px 8px',
+                      backgroundColor: 'rgba(0,0,0,0.5)',
+                      borderRadius: 4,
+                      border: '1px solid var(--color-border)',
+                      fontSize: 10,
+                      width: '100%',
+                      justifyContent: 'space-between'
+                    }}>
+                      <span style={{ color: 'var(--color-text-muted)' }}>CAMERA SCAN SUBJECT:</span>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button
+                          type="button"
+                          onClick={() => setSimulatedMatchMode('MATCHED')}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: 3,
+                            fontSize: 9,
+                            fontWeight: 'bold',
+                            border: simulatedMatchMode === 'MATCHED' ? '1px solid var(--color-success)' : '1px solid transparent',
+                            backgroundColor: simulatedMatchMode === 'MATCHED' ? 'rgba(34, 197, 94, 0.25)' : 'transparent',
+                            color: simulatedMatchMode === 'MATCHED' ? 'var(--color-success)' : 'var(--color-text-muted)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ✅ MATCHED FACIAL SIGNATURE
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSimulatedMatchMode('MISMATCHED')}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: 3,
+                            fontSize: 9,
+                            fontWeight: 'bold',
+                            border: simulatedMatchMode === 'MISMATCHED' ? '1px solid var(--color-alert)' : '1px solid transparent',
+                            backgroundColor: simulatedMatchMode === 'MISMATCHED' ? 'rgba(239, 68, 68, 0.25)' : 'transparent',
+                            color: simulatedMatchMode === 'MISMATCHED' ? 'var(--color-alert)' : 'var(--color-text-muted)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          🚨 MISMATCHED / WRONG PERSON
+                        </button>
+                      </div>
                     </div>
 
                     {/* Scanner Camera / Target Reticle Window */}
