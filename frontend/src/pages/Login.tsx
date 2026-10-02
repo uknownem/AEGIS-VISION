@@ -584,15 +584,44 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Action Header Links: Try Demo & Security Indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {/* Action Header Links: Iris Scan, Try Demo & Security Indicator */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            type="button"
+            onClick={() => {
+              setAuthMode('SIGN_IN');
+              setActiveStep('CREDENTIALS');
+              setAuthMethod('IRIS_BIOMETRIC');
+              startIrisScan();
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '8px 16px',
+              backgroundColor: 'rgba(34, 197, 94, 0.2)',
+              border: '1px solid var(--color-accent)',
+              borderRadius: 4,
+              color: 'var(--color-accent)',
+              fontSize: 12,
+              fontWeight: 'bold',
+              letterSpacing: 1,
+              cursor: 'pointer',
+              boxShadow: '0 0 15px rgba(34, 197, 94, 0.3)',
+              transition: 'all 0.2s'
+            }}
+          >
+            <Eye size={16} className="animate-pulse" />
+            👁️ SCAN IRIS BIOMETRIC
+          </button>
+
           <Link
             to="/demo"
             style={{
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              padding: '8px 18px',
+              padding: '8px 16px',
               backgroundColor: 'rgba(234, 179, 8, 0.18)',
               border: '1px solid var(--color-warning)',
               borderRadius: 4,
