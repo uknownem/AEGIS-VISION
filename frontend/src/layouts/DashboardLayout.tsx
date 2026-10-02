@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet, NavLink } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Video, Map, Bell, Users, BarChart3, Activity, 
   Settings, Crosshair, MapPin, Clock, X, Shield, Key, Volume2, 
@@ -8,8 +8,10 @@ import {
 import { tacticalSiren } from '../utils/siren';
 import { alertSync } from '../utils/alertSync';
 import AddExternalCameraModal from '../components/AddExternalCameraModal';
+import VoiceAssistantWidget from '../components/VoiceAssistantWidget';
 
 export default function DashboardLayout() {
+  const navigate = useNavigate();
   const [timeStr, setTimeStr] = useState(() => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   const [activeAlertCount, setActiveAlertCount] = useState(0);
   
@@ -657,6 +659,13 @@ export default function DashboardLayout() {
       <AddExternalCameraModal 
         isOpen={showAddCameraModal} 
         onClose={() => setShowAddCameraModal(false)} 
+      />
+
+      {/* AEGIS AI Tactical Voice Assistant Widget */}
+      <VoiceAssistantWidget
+        onNavigate={navigate}
+        onOpenAddCamModal={() => setShowAddCameraModal(true)}
+        onSetDefcon={(level) => setDefconLevel(level)}
       />
     </div>
   );
