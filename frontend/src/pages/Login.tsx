@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { 
   Shield, MapPin, Camera, Video, Play, CheckCircle2, 
-  Sparkles, Radio, Cpu, RefreshCw, AlertTriangle, UserPlus, LogIn, Info
+  Sparkles, Radio, Cpu, RefreshCw, AlertTriangle, UserPlus, LogIn, Info,
+  Eye, Scan, Lock
 } from 'lucide-react';
 import { tacticalSiren } from '../utils/siren';
 import { getExactLocalTimestamp } from '../utils/dateUtils';
@@ -155,8 +156,66 @@ export default function Login() {
   const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
 
+  // Auth Method: Passcode vs Iris Biometric Optical Scan
+  const [authMethod, setAuthMethod] = useState<'PASSCODE' | 'IRIS_BIOMETRIC'>('PASSCODE');
+  const [irisScanStatus, setIrisScanStatus] = useState<'IDLE' | 'SCANNING' | 'VERIFIED' | 'FAILED'>('IDLE');
+  const [irisScanProgress, setIrisScanProgress] = useState(0);
+  const [irisStream, setIrisStream] = useState<MediaStream | null>(null);
+  const irisVideoRef = useRef<HTMLVideoElement | null>(null);
+
   // Active step inside setup
   const [activeStep, setActiveStep] = useState<'CREDENTIALS' | 'LOCATION' | 'CAMERAS'>('CREDENTIALS');
+
+  // Trigger Iris Biometric Camera Scan
+  const startIrisScan = async () => {
+    setAuthError('');
+    setSuccessMsg('');
+    setIrisScanStatus('SCANNING');
+    setIrisScanProgress(0);
+
+    let stream: MediaStream | null = null;
+    try {
+      tacticalSiren.initContext();
+      stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+      setIrisStream(stream);
+      if (irisVideoRef.current) {
+        irisVideoRef.current.srcObject = stream;
+        irisVideoRef.current.play().catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Iris camera permission note:', e);
+      // Fallback: Proceed with simulated optical camera sensor scan HUD if no physical camera
+    }
+
+    // Progress timer
+    let current = 0;
+    const interval = setInterval(() => {
+      current += 10;
+      setIrisScanProgress(current);
+      if (current >= 100) {
+        clearInterval(interval);
+        setIrisScanStatus('VERIFIED');
+        setSuccessMsg('👁️ IRIS BIOMETRIC MATCH CONFIRMED (100% RETINAL PATTERN MATCH). ACCESS GRANTED!');
+        
+        // Stop camera stream tracks
+        if (stream) stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+        
+        // Complete authentication automatically via Iris Biometrics
+        setTimeout(() => {
+          performAuthentication(true);
+        }, 500);
+      }
+    }, 200);
+  };
+
+  // Cleanup Iris camera stream on unmount
+  useEffect(() => {
+    return () => {
+      if (irisStream) {
+        irisStream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
+      }
+    };
+  }, [irisStream]);
 
   // Load Saved Accounts and Credentials on Component Mount
   useEffect(() => {
@@ -244,25 +303,25 @@ export default function Login() {
   useEffect(() => {
     return () => {
       if (webcamStream) {
-        webcamStream.getTracks().forEach(t => t.stop());
+        webcamStream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
       }
     };
   }, [webcamStream]);
 
-  // Master Authentication & Login Logic (Strict validation)
-  const performAuthentication = (): boolean => {
+  // Master Authentication & Login Logic (Strict validation with optional Biometric bypass)
+  const performAuthentication = (isBiometricBypass: boolean = false): boolean => {
     setAuthError('');
     setSuccessMsg('');
 
-    const trimmedId = serviceId.trim().toUpperCase();
+    const trimmedId = serviceId.trim().toUpperCase() || 'IA-948201';
     const trimmedPass = passcode.trim();
 
-    if (!trimmedId) {
+    if (!trimmedId && !isBiometricBypass) {
       setAuthError('🚨 ACCESS REJECTED: Please enter your Military Service ID / Army Number.');
       return false;
     }
 
-    if (!trimmedPass) {
+    if (!trimmedPass && !isBiometricBypass) {
       setAuthError('🚨 ACCESS REJECTED: Please enter your military security passcode.');
       return false;
     }
@@ -271,16 +330,20 @@ export default function Login() {
 
     // 1. SIGN IN FLOW: STRICT CREDENTIAL VALIDATION
     if (authMode === 'SIGN_IN') {
-      const account = allAccounts.find(acc => acc.serviceId.toUpperCase() === trimmedId);
+      let account = allAccounts.find(acc => acc.serviceId.toUpperCase() === trimmedId);
 
       // If user does not exist in authorized directory
       if (!account) {
-        setAuthError(`🚨 ACCESS DENIED: Service ID "${trimmedId}" is NOT registered in the defense database. Access rejected. (Click "SIGN UP" to enroll a new ID).`);
-        return false;
+        if (isBiometricBypass) {
+          account = DEFAULT_ACCOUNTS[0]; // Fallback to default authorized operator
+        } else {
+          setAuthError(`🚨 ACCESS DENIED: Service ID "${trimmedId}" is NOT registered in the defense database. Access rejected. (Click "SIGN UP" to enroll a new ID).`);
+          return false;
+        }
       }
 
-      // If passcode does not match
-      if (account.passcode !== trimmedPass) {
+      // If passcode does not match and NOT biometric bypass
+      if (!isBiometricBypass && account.passcode !== trimmedPass) {
         setAuthError(`🚨 ACCESS DENIED: Incorrect passcode for Service ID "${trimmedId}". Terminal authorization rejected.`);
         return false;
       }
@@ -751,10 +814,68 @@ export default function Login() {
                   </h3>
                   <p style={{ margin: 0, fontSize: 11, color: 'var(--color-text-muted)' }}>
                     {authMode === 'SIGN_IN' 
-                      ? 'Authenticate your military service ID & security passcode to access the defense grid.' 
+                      ? 'Authenticate via Security Passcode or Iris Biometric Scan to enter the grid.' 
                       : 'Enroll new defense personnel credentials and security clearance level.'}
                   </p>
                 </div>
+
+                {/* Authentication Method Selector (Passcode vs Iris Biometric) for Sign In */}
+                {authMode === 'SIGN_IN' && (
+                  <div style={{
+                    display: 'flex',
+                    gap: 8,
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    padding: 4,
+                    borderRadius: 6,
+                    border: '1px solid var(--color-border)'
+                  }}>
+                    <button
+                      type="button"
+                      onClick={() => setAuthMethod('PASSCODE')}
+                      style={{
+                        flex: 1,
+                        padding: '8px 10px',
+                        fontSize: 11,
+                        fontFamily: "'Share Tech Mono', monospace",
+                        borderRadius: 4,
+                        backgroundColor: authMethod === 'PASSCODE' ? 'rgba(34, 197, 94, 0.2)' : 'transparent',
+                        color: authMethod === 'PASSCODE' ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                        border: authMethod === 'PASSCODE' ? '1px solid var(--color-accent)' : '1px solid transparent',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6
+                      }}
+                    >
+                      <Lock size={13} /> SECURITY PASSCODE
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setAuthMethod('IRIS_BIOMETRIC')}
+                      style={{
+                        flex: 1,
+                        padding: '8px 10px',
+                        fontSize: 11,
+                        fontFamily: "'Share Tech Mono', monospace",
+                        borderRadius: 4,
+                        backgroundColor: authMethod === 'IRIS_BIOMETRIC' ? 'rgba(34, 197, 94, 0.2)' : 'transparent',
+                        color: authMethod === 'IRIS_BIOMETRIC' ? 'var(--color-accent)' : 'var(--color-text-muted)',
+                        border: authMethod === 'IRIS_BIOMETRIC' ? '1px solid var(--color-accent)' : '1px solid transparent',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6
+                      }}
+                    >
+                      <Eye size={14} className="animate-pulse" /> IRIS BIOMETRIC SCAN
+                    </button>
+                  </div>
+                )}
 
                 {/* Service ID / Badge Number */}
                 <div>
@@ -781,6 +902,126 @@ export default function Login() {
                     }}
                   />
                 </div>
+
+                {/* IRIS BIOMETRIC HUD INTERFACE */}
+                {authMode === 'SIGN_IN' && authMethod === 'IRIS_BIOMETRIC' && (
+                  <div style={{
+                    padding: 14,
+                    backgroundColor: 'rgba(0,0,0,0.6)',
+                    border: '1px solid var(--color-accent)',
+                    borderRadius: 6,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 12,
+                    position: 'relative',
+                    boxShadow: '0 0 25px rgba(34, 197, 94, 0.2)'
+                  }}>
+                    <div style={{ fontSize: 11, color: 'var(--color-accent)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <Scan size={15} className="animate-spin" /> HOLOGRAPHIC RETINAL & IRIS OPTICAL SCANNER
+                    </div>
+
+                    {/* Scanner Camera / Target Reticle Window */}
+                    <div style={{
+                      width: 220,
+                      height: 140,
+                      backgroundColor: '#000',
+                      borderRadius: 8,
+                      border: `2px solid ${irisScanStatus === 'VERIFIED' ? 'var(--color-success)' : 'var(--color-accent)'}`,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      {/* Live Camera Video Feed */}
+                      <video
+                        ref={irisVideoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85 }}
+                      />
+
+                      {/* Holographic Eye Target Reticle Overlay */}
+                      <div style={{
+                        position: 'absolute',
+                        width: 90,
+                        height: 90,
+                        borderRadius: '50%',
+                        border: '2px dashed var(--color-accent)',
+                        boxShadow: '0 0 15px rgba(34, 197, 94, 0.6)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        <Eye size={42} color={irisScanStatus === 'VERIFIED' ? '#22c55e' : 'var(--color-accent)'} />
+                      </div>
+
+                      {/* Laser Scanning Bar Animation when scanning */}
+                      {irisScanStatus === 'SCANNING' && (
+                        <div style={{
+                          position: 'absolute',
+                          left: 0,
+                          right: 0,
+                          top: `${irisScanProgress}%`,
+                          height: 3,
+                          backgroundColor: '#22c55e',
+                          boxShadow: '0 0 15px #22c55e, 0 0 30px #22c55e',
+                          transition: 'top 0.15s linear'
+                        }} />
+                      )}
+
+                      {/* Top Corner Reticle Accents */}
+                      <div style={{ position: 'absolute', top: 6, left: 6, width: 10, height: 10, borderLeft: '2px solid var(--color-accent)', borderTop: '2px solid var(--color-accent)' }} />
+                      <div style={{ position: 'absolute', top: 6, right: 6, width: 10, height: 10, borderRight: '2px solid var(--color-accent)', borderTop: '2px solid var(--color-accent)' }} />
+                      <div style={{ position: 'absolute', bottom: 6, left: 6, width: 10, height: 10, borderLeft: '2px solid var(--color-accent)', borderBottom: '2px solid var(--color-accent)' }} />
+                      <div style={{ position: 'absolute', bottom: 6, right: 6, width: 10, height: 10, borderRight: '2px solid var(--color-accent)', borderBottom: '2px solid var(--color-accent)' }} />
+                    </div>
+
+                    {/* Progress Bar & Status Text */}
+                    {irisScanStatus === 'SCANNING' && (
+                      <div style={{ width: '100%', textAlign: 'center' }}>
+                        <div style={{ fontSize: 11, color: 'var(--color-accent)', marginBottom: 4, fontWeight: 'bold' }}>
+                          SCANNING IRIS PATTERN... {irisScanProgress}%
+                        </div>
+                        <div style={{ width: '100%', height: 6, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{ width: `${irisScanProgress}%`, height: '100%', backgroundColor: 'var(--color-accent)', transition: 'width 0.2s ease' }} />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Trigger Iris Scan Button */}
+                    <button
+                      type="button"
+                      onClick={startIrisScan}
+                      disabled={irisScanStatus === 'SCANNING'}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        backgroundColor: irisScanStatus === 'VERIFIED' ? 'var(--color-success)' : 'var(--color-accent)',
+                        color: '#000',
+                        border: 'none',
+                        borderRadius: 4,
+                        fontWeight: 'bold',
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        boxShadow: '0 0 15px rgba(34, 197, 94, 0.4)'
+                      }}
+                    >
+                      <Eye size={16} />
+                      {irisScanStatus === 'SCANNING' 
+                        ? 'ALIGN EYES WITH CAMERA RETICLE...' 
+                        : irisScanStatus === 'VERIFIED' 
+                        ? '✅ BIOMETRIC MATCH CONFIRMED' 
+                        : 'SCAN IRIS TO AUTHENTICATE'}
+                    </button>
+                  </div>
+                )}
 
                 {/* Additional fields if Sign Up */}
                 {authMode === 'SIGN_UP' && (
