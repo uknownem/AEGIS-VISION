@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../config';
+import { getExactLocalTimestamp } from './dateUtils';
 
 export type IncursionType = 
   | 'NON_HUMAN_INTRUSION'
@@ -55,7 +56,7 @@ export const SAMPLE_SECURITY_ALERTS: SecurityAlert[] = [
     origin_operator: 'IA-948201 (Subedar Vikram Singh)',
     origin_base: 'LAC Northern Outpost',
     notes: 'Armored vehicle detected traversing snow corridor // AUTOMATED TACTICAL SIREN ENGAGED', 
-    timestamp: '2026-10-01 14:24:12' 
+    timestamp: getExactLocalTimestamp(Date.now() - 3600000)
   },
   { 
     id: 102, 
@@ -72,8 +73,8 @@ export const SAMPLE_SECURITY_ALERTS: SecurityAlert[] = [
     distance_meters: 1.4, 
     origin_operator: 'IA-773194 (Major Rajesh Sharma)',
     origin_base: 'Main HQ Alpha',
-    notes: 'Non-human prohibited object detected in perimeter perimeter zone // CONTINUOUS SIREN ACTIVE', 
-    timestamp: '2026-10-01 14:10:00' 
+    notes: 'Non-human prohibited object detected in perimeter zone // CONTINUOUS SIREN ACTIVE', 
+    timestamp: getExactLocalTimestamp(Date.now() - 7200000)
   },
   { 
     id: 103, 
@@ -91,7 +92,7 @@ export const SAMPLE_SECURITY_ALERTS: SecurityAlert[] = [
     origin_operator: 'IA-829104 (Captain Ananya Roy)',
     origin_base: 'Eastern Ridge Base',
     notes: 'Low-altitude radar-evading drone detected crossing perimeter // Operator acknowledged', 
-    timestamp: '2026-10-01 13:58:30' 
+    timestamp: getExactLocalTimestamp(Date.now() - 10800000)
   },
   { 
     id: 104, 
@@ -109,7 +110,7 @@ export const SAMPLE_SECURITY_ALERTS: SecurityAlert[] = [
     origin_operator: 'IA-661038 (Havildar Gurpreet Singh)',
     origin_base: 'Siachen Sentry Post',
     notes: 'Thermal heat bloom verified as authorized convoy exhaust // Threat neutralized & resolved', 
-    timestamp: '2026-10-01 13:30:00' 
+    timestamp: getExactLocalTimestamp(Date.now() - 14400000)
   }
 ];
 
@@ -146,6 +147,11 @@ class AlertSyncService {
         }
       });
 
+      // Custom DOM event for instant single-page sync
+      window.addEventListener('aegis_alerts_updated', () => {
+        this.notifyListeners(this.getAlerts());
+      });
+
       this.startLivePolling();
     }
   }
@@ -180,7 +186,6 @@ class AlertSyncService {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) {
             if (parsed.length > 0) return parsed;
-            // If explicitly set to empty array and no sample flag, return clean []
             if (parsed.length === 0 && !sampleFlag) return [];
           }
         }
@@ -213,13 +218,18 @@ class AlertSyncService {
       } catch {}
     }
 
+    // Dispatch DOM event for same-tab subscribers
+    try {
+      window.dispatchEvent(new Event('aegis_alerts_updated'));
+    } catch {}
+
     this.notifyListeners(alerts);
   }
 
   // Record a new incursion alert from ANY account or detection sensor
   public async broadcastNewAlert(alertData: Partial<SecurityAlert>): Promise<SecurityAlert> {
     const session = this.getActiveOperatorSession();
-    const timeStr = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const timeStr = alertData.timestamp || getExactLocalTimestamp();
     const newId = alertData.id || (Date.now() % 1000000);
 
     // Determine Incursion & Object Category
@@ -259,14 +269,13 @@ class AlertSyncService {
       siren_triggered: alertData.siren_triggered !== undefined ? alertData.siren_triggered : 1,
       status: alertData.status || 'ACTIVE',
       distance_meters: alertData.distance_meters || 1.8,
-      origin_operator: `${session.id} (${session.name})`,
+      origin_operator: alertData.origin_operator || `${session.id} (${session.name})`,
       origin_base: session.base,
       notes: alertData.notes || `Incursion logged live by ${session.name} // Sector Alarm Engaged`,
-      timestamp: alertData.timestamp || timeStr
+      timestamp: timeStr
     };
 
     const currentAlerts = this.getAlerts();
-    // Filter out if duplicate ID exists, prepend new alert
     const updated = [newAlert, ...currentAlerts.filter(a => a.id !== newId)];
     this.saveAndBroadcastAlerts(updated);
 
@@ -285,7 +294,7 @@ class AlertSyncService {
   // Update status of an existing alert (ACKNOWLEDGE / RESOLVE)
   public async updateAlertStatus(id: number, newStatus: 'ACTIVE' | 'ACKNOWLEDGED' | 'RESOLVED', notes?: string) {
     const session = this.getActiveOperatorSession();
-    const timeStr = new Date().toLocaleTimeString();
+    const timeStr = getExactLocalTimestamp();
     const currentAlerts = this.getAlerts();
 
     const updated = currentAlerts.map(a => {
@@ -339,7 +348,6 @@ class AlertSyncService {
   // Subscribe to live alert updates across any account
   public subscribe(callback: (alerts: SecurityAlert[]) => void): () => void {
     this.listeners.add(callback);
-    // Trigger initial callback
     callback(this.getAlerts());
 
     return () => {
@@ -381,7 +389,7 @@ class AlertSyncService {
       } catch {}
     };
 
-    setInterval(pollBackend, 2500);
+    setInterval(pollBackend, 1500);
   }
 }
 

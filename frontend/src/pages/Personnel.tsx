@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { User, ShieldCheck, ShieldAlert, Search, Clock, Plus, CheckCircle2, RefreshCw, Terminal, Sparkles, Trash2, Database } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+import { getExactLocalTimestamp } from '../utils/dateUtils';
 
 interface SoldierLog {
   id: number;
@@ -117,7 +118,7 @@ export default function Personnel() {
           terminal_id: `TERMINAL-${currentSession.base?.code || 'MAIN-GRID'}`,
           ip_address: '10.14.0.12',
           status: 'AUTHORIZED',
-          timestamp: currentSession.loginTimestamp || new Date().toISOString().replace('T', ' ').substring(0, 19)
+          timestamp: currentSession.loginTimestamp || getExactLocalTimestamp()
         };
         storedLogins = [activeEntry, ...storedLogins];
         localStorage.setItem('aegis_duty_logins', JSON.stringify(storedLogins));
@@ -133,12 +134,29 @@ export default function Personnel() {
           activity_type: 'DUTY_LOGIN',
           details: `Active operator authenticated to ${currentSession.base?.name || 'Sector Command'}`,
           terminal_id: `TERMINAL-${currentSession.base?.code || 'MAIN-GRID'}`,
-          timestamp: currentSession.loginTimestamp || new Date().toISOString().replace('T', ' ').substring(0, 19)
+          timestamp: currentSession.loginTimestamp || getExactLocalTimestamp()
         };
         storedActs = [activeAct, ...storedActs];
         localStorage.setItem('aegis_personnel_activities', JSON.stringify(storedActs));
       }
     }
+
+    // Attempt backend sync
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/soldier-logs`);
+      if (res.ok) {
+        const json = await res.json().catch(() => null);
+        if (json && json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+          const map = new Map<string, SoldierLog>();
+          json.data.forEach((l: SoldierLog) => map.set(`${l.service_number}_${l.timestamp}`, l));
+          storedLogins.forEach((l: SoldierLog) => {
+            const k = `${l.service_number}_${l.timestamp}`;
+            if (!map.has(k)) map.set(k, l);
+          });
+          storedLogins = Array.from(map.values()).sort((a, b) => b.id - a.id);
+        }
+      }
+    } catch {}
 
     // Check if sample dataset is enabled
     const sampleFlag = localStorage.getItem('aegis_sample_dataset_loaded') === 'true';
@@ -187,8 +205,26 @@ export default function Personnel() {
 
   useEffect(() => {
     refreshPersonnelData();
-    const interval = setInterval(refreshPersonnelData, 5000);
-    return () => clearInterval(interval);
+    const interval = setInterval(refreshPersonnelData, 1500);
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'aegis_duty_logins' || e.key === 'aegis_personnel_activities' || e.key === 'aegis_session') {
+        refreshPersonnelData();
+      }
+    };
+
+    const handleCustomEvent = () => {
+      refreshPersonnelData();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('aegis_duty_logins_updated', handleCustomEvent);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('aegis_duty_logins_updated', handleCustomEvent);
+    };
   }, []);
 
   // 2. Load Sample Military Datasets on Demand

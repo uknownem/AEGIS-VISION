@@ -5,6 +5,8 @@ import {
   Sparkles, Radio, Cpu, RefreshCw, AlertTriangle, UserPlus, LogIn, Info
 } from 'lucide-react';
 import { tacticalSiren } from '../utils/siren';
+import { getExactLocalTimestamp } from '../utils/dateUtils';
+import { API_BASE_URL } from '../config';
 
 interface MilitaryBase {
   id: string;
@@ -284,7 +286,7 @@ export default function Login() {
       }
 
       // Credentials are 100% VALID!
-      const currentTimestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      const currentTimestamp = getExactLocalTimestamp();
 
       const sessionData = {
         serviceId: account.serviceId,
@@ -323,7 +325,7 @@ export default function Login() {
           status: 'AUTHORIZED',
           timestamp: currentTimestamp
         };
-        localStorage.setItem('aegis_duty_logins', JSON.stringify([newLoginLog, ...storedLogins.filter((l: any) => l.service_number !== account.serviceId || l.timestamp !== currentTimestamp)]));
+        localStorage.setItem('aegis_duty_logins', JSON.stringify([newLoginLog, ...storedLogins]));
 
         // Live update in Personnel activity trail
         const storedActivities = JSON.parse(localStorage.getItem('aegis_personnel_activities') || '[]');
@@ -338,6 +340,16 @@ export default function Login() {
           timestamp: currentTimestamp
         };
         localStorage.setItem('aegis_personnel_activities', JSON.stringify([newAct, ...storedActivities]));
+
+        // Broadcast DOM event for immediate live tab sync
+        window.dispatchEvent(new Event('aegis_duty_logins_updated'));
+
+        // Post login to backend if connected
+        fetch(`${API_BASE_URL}/api/auth/soldier-login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newLoginLog)
+        }).catch(() => {});
       } catch {}
 
       tacticalSiren.initContext();
@@ -390,7 +402,7 @@ export default function Login() {
       localStorage.removeItem('aegis_sample_dataset_loaded');
       localStorage.removeItem('aegis_sample_alerts_loaded');
 
-      const currentTimestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      const currentTimestamp = getExactLocalTimestamp();
 
       const sessionData = {
         ...newAccount,
@@ -436,6 +448,14 @@ export default function Login() {
           timestamp: currentTimestamp
         };
         localStorage.setItem('aegis_personnel_activities', JSON.stringify([newAct, ...storedActivities]));
+
+        window.dispatchEvent(new Event('aegis_duty_logins_updated'));
+
+        fetch(`${API_BASE_URL}/api/auth/soldier-login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newLoginLog)
+        }).catch(() => {});
       } catch {}
 
       tacticalSiren.initContext();
