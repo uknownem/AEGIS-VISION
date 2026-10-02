@@ -156,7 +156,7 @@ export default function Login() {
   // Sign Up / Register Fields
   const [regUnit, setRegUnit] = useState('14 Corps - High Altitude Recon');
   const [regRank, setRegRank] = useState('Subedar');
-  const [regPhone, setRegPhone] = useState('+91 98765-43210');
+  const [regPhone, setRegPhone] = useState('');
   const [confirmPasscode, setConfirmPasscode] = useState('');
 
   const [authError, setAuthError] = useState('');
@@ -422,21 +422,21 @@ export default function Login() {
     };
   }, [webcamStream]);
 
-  // Master Authentication & Login Logic (Strict validation with optional Biometric bypass)
+  // Master Authentication & Login Logic (Strict validation with mandatory fields)
   const performAuthentication = (isBiometricBypass: boolean = false): boolean => {
     setAuthError('');
     setSuccessMsg('');
 
-    const trimmedId = serviceId.trim().toUpperCase() || 'IA-948201';
+    const trimmedId = serviceId.trim().toUpperCase();
     const trimmedPass = passcode.trim();
 
-    if (!trimmedId && !isBiometricBypass) {
-      setAuthError('🚨 ACCESS REJECTED: Please enter your Military Service ID / Army Number.');
+    if (!trimmedId) {
+      setAuthError('🚨 ACCESS REJECTED: Service ID / Badge Number is MANDATORY. Please enter your Service ID.');
       return false;
     }
 
     if (!trimmedPass && !isBiometricBypass) {
-      setAuthError('🚨 ACCESS REJECTED: Please enter your military security passcode.');
+      setAuthError('🚨 ACCESS REJECTED: Security Passcode is MANDATORY. Please enter your passcode.');
       return false;
     }
 
@@ -448,12 +448,8 @@ export default function Login() {
 
       // If user does not exist in authorized directory
       if (!account) {
-        if (isBiometricBypass) {
-          account = DEFAULT_ACCOUNTS[0]; // Fallback to default authorized operator
-        } else {
-          setAuthError(`🚨 ACCESS DENIED: Service ID "${trimmedId}" is NOT registered in the defense database. Access rejected. (Click "SIGN UP" to enroll a new ID).`);
-          return false;
-        }
+        setAuthError(`🚨 ACCESS DENIED: Service ID "${trimmedId}" is NOT registered in the defense database. Access rejected. (Click "SIGN UP" to enroll a new account).`);
+        return false;
       }
 
       // If passcode does not match and NOT biometric bypass
@@ -1331,13 +1327,13 @@ export default function Login() {
 
                     <div>
                       <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
-                        SECURE COMM / MOBILE LINE
+                        SECURE COMM / MOBILE LINE (OPTIONAL)
                       </label>
                       <input
                         type="text"
                         value={regPhone}
                         onChange={(e) => setRegPhone(e.target.value)}
-                        placeholder="e.g. +91 98765-43210"
+                        placeholder="e.g. +91 98765-43210 (Optional)"
                         style={{
                           width: '100%',
                           padding: '9px 12px',
