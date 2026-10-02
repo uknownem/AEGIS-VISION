@@ -147,17 +147,17 @@ export default function Login() {
   // Auth Mode: Sign In (Existing Operator) vs Sign Up (Register New Operator)
   const [authMode, setAuthMode] = useState<'SIGN_IN' | 'SIGN_UP'>('SIGN_IN');
 
-  // Sign In Credentials State
-  const [serviceId, setServiceId] = useState('IA-948201');
-  const [operatorName, setOperatorName] = useState('Subedar Vikram Singh');
-  const [passcode, setPasscode] = useState('aegis2026');
+  // Sign In Credentials State (Start empty so user can type cleanly)
+  const [serviceId, setServiceId] = useState('');
+  const [operatorName, setOperatorName] = useState('');
+  const [passcode, setPasscode] = useState('');
   const [clearanceLevel, setClearanceLevel] = useState('LEVEL-5 TOP SECRET (COSMIC)');
   
   // Sign Up / Register Fields
   const [regUnit, setRegUnit] = useState('14 Corps - High Altitude Recon');
   const [regRank, setRegRank] = useState('Subedar');
   const [regPhone, setRegPhone] = useState('+91 98765-43210');
-  const [confirmPasscode, setConfirmPasscode] = useState('aegis2026');
+  const [confirmPasscode, setConfirmPasscode] = useState('');
 
   const [authError, setAuthError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -361,26 +361,6 @@ export default function Login() {
 
       const saved = localStorage.getItem('aegis_saved_credentials') || localStorage.getItem('aegis_session');
       if (saved) {
-        const data = JSON.parse(saved);
-        if (data.serviceId) setServiceId(data.serviceId);
-        if (data.operatorName) {
-          const rawName = data.operatorName.replace(/^(Subedar Major|Subedar|Major|Colonel|Captain|Havildar|Commander)\s+/i, '');
-          setOperatorName(rawName);
-        }
-        if (data.passcode) {
-          setPasscode(data.passcode);
-          setConfirmPasscode(data.passcode);
-        }
-        if (data.clearanceLevel) setClearanceLevel(data.clearanceLevel);
-        if (data.unit) setRegUnit(data.unit);
-        if (data.rank) setRegRank(data.rank);
-        if (data.phone) setRegPhone(data.phone);
-        if (data.base && data.base.id) {
-          const match = MILITARY_BASES.find(b => b.id === data.base.id);
-          if (match) setSelectedBase(match);
-        }
-        if (typeof data.webcamEnabled === 'boolean') setWebcamEnabled(data.webcamEnabled);
-        if (data.ipCameraUrl) setIpCameraUrl(data.ipCameraUrl);
         setHasSavedCreds(true);
       }
     } catch (e) {
@@ -1334,6 +1314,30 @@ export default function Login() {
                         value={regUnit}
                         onChange={(e) => setRegUnit(e.target.value)}
                         placeholder="e.g. 14 Corps - High Altitude Recon"
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: 4,
+                          color: '#ffffff',
+                          fontFamily: "'Share Tech Mono', monospace",
+                          fontSize: 13,
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 4 }}>
+                        SECURE COMM / MOBILE LINE
+                      </label>
+                      <input
+                        type="text"
+                        value={regPhone}
+                        onChange={(e) => setRegPhone(e.target.value)}
+                        placeholder="e.g. +91 98765-43210"
                         style={{
                           width: '100%',
                           padding: '9px 12px',

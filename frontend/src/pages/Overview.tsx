@@ -149,8 +149,8 @@ export default function Overview() {
         </div>
       )}
 
-      {/* Header controls */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottom: '1px solid var(--color-border)', paddingBottom: 10 }}>
+      {/* Header controls with generous spacing */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28, borderBottom: '1px solid var(--color-border)', paddingBottom: 14 }}>
         <h3 style={{ color: 'var(--color-accent)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <Activity size={18} /> LIVE CAMERA MULTI-VIEW ({cameras.length} UNITS)
         </h3>
