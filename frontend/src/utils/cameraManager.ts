@@ -16,19 +16,18 @@ export interface CameraItem {
 const STORAGE_KEY = 'aegis_custom_cameras';
 
 export class CameraManagerService {
+  private lastDeletedCamera: CameraItem | null = null;
+
   public getCameras(): CameraItem[] {
     const defaultCameras = mockCameras as CameraItem[];
     if (typeof window === 'undefined') return [...defaultCameras];
 
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
+      if (stored !== null) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const map = new Map<string, CameraItem>();
-          defaultCameras.forEach(c => map.set(c.id, c));
-          parsed.forEach((c: CameraItem) => map.set(c.id, c));
-          return Array.from(map.values());
+        if (Array.isArray(parsed)) {
+          return parsed;
         }
       }
     } catch {}
@@ -36,14 +35,14 @@ export class CameraManagerService {
     return [...defaultCameras];
   }
 
-  public addExternalCamera(newCam: Omit<CameraItem, 'id' | 'status'> & { id?: string }): CameraItem {
+  public addExternalCamera(newCam: Omit<CameraItem, 'id' | 'status'> & { id?: string; status?: 'live' | 'offline' | 'warning' }): CameraItem {
     const cameras = this.getCameras();
     const camId = newCam.id || `EXT-CAM-${String(cameras.length + 1).padStart(2, '0')}`;
     
     const cameraRecord: CameraItem = {
       ...newCam,
       id: camId,
-      status: 'live'
+      status: newCam.status || 'live'
     };
 
     const updated = [cameraRecord, ...cameras.filter(c => c.id !== camId)];
@@ -55,17 +54,38 @@ export class CameraManagerService {
     return cameraRecord;
   }
 
-  public deleteCamera(id: string) {
-    const cameras = this.getCameras().filter(c => c.id !== id);
+  public deleteCamera(id: string): CameraItem | null {
+    const cameras = this.getCameras();
+    const target = cameras.find(c => c.id === id);
+    if (!target) return null;
+
+    this.lastDeletedCamera = target;
+    const updated = cameras.filter(c => c.id !== id);
+
     if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(cameras));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       window.dispatchEvent(new Event('aegis_cameras_updated'));
     }
+
+    return target;
+  }
+
+  public undoDeleteCamera(): CameraItem | null {
+    if (!this.lastDeletedCamera) return null;
+    const item = this.lastDeletedCamera;
+    this.addExternalCamera(item);
+    this.lastDeletedCamera = null;
+    return item;
+  }
+
+  public getLastDeleted(): CameraItem | null {
+    return this.lastDeletedCamera;
   }
 
   public resetToDefault() {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(STORAGE_KEY);
+      this.lastDeletedCamera = null;
       window.dispatchEvent(new Event('aegis_cameras_updated'));
     }
   }

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, Maximize2, AlertTriangle, ShieldCheck, X, Camera, 
-  Eye, VolumeX, ZoomIn, ZoomOut, Siren, Wifi
+  Eye, VolumeX, ZoomIn, ZoomOut, Siren, Wifi, Trash2
 } from 'lucide-react';
 import { tacticalSiren } from '../utils/siren';
 import { visionDetector } from '../utils/visionDetector';
@@ -570,6 +570,30 @@ export default function CameraMonitoring() {
             }}
           >
             <ArrowLeft size={16} /> BACK
+          </button>
+
+          <button 
+            onClick={() => {
+              cameraManager.deleteCamera(camera.id);
+              navigate('/dashboard');
+            }}
+            title={`Delete ${camera.name} from tactical grid`}
+            style={{ 
+              padding: '8px 12px', 
+              border: '1px solid var(--color-alert)', 
+              borderRadius: 4, 
+              backgroundColor: 'rgba(239, 68, 68, 0.15)',
+              color: 'var(--color-alert)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 12,
+              fontWeight: 'bold',
+              fontFamily: "'Share Tech Mono', monospace"
+            }}
+          >
+            <Trash2 size={15} /> DELETE CAMERA
           </button>
           <div>
             <h2 style={{ fontSize: 20, color: 'var(--color-accent)' }}>{camera.id} // {camera.name}</h2>
