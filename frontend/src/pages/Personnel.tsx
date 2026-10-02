@@ -82,8 +82,10 @@ export default function Personnel() {
   const [successMsg, setSuccessMsg] = useState('');
 
   // 1. Fetch & Sync Live Logins from localStorage + Backend API
-  const refreshPersonnelData = async () => {
-    setLoading(true);
+  const refreshPersonnelData = async (isManual: boolean = false) => {
+    if (isManual || soldierLogs.length === 0) {
+      setLoading(true);
+    }
 
     // Read active operator session
     let currentSession: any = null;
@@ -197,9 +199,9 @@ export default function Personnel() {
       });
     }
 
-    setSoldierLogs(finalLogs);
-    setActivities(finalActs);
-    setPersonnelList(finalMembers);
+    setSoldierLogs(prev => JSON.stringify(prev) === JSON.stringify(finalLogs) ? prev : finalLogs);
+    setActivities(prev => JSON.stringify(prev) === JSON.stringify(finalActs) ? prev : finalActs);
+    setPersonnelList(prev => JSON.stringify(prev) === JSON.stringify(finalMembers) ? prev : finalMembers);
     setLoading(false);
   };
 
@@ -348,7 +350,7 @@ export default function Personnel() {
 
           {/* Live Refresh Button */}
           <button
-            onClick={() => refreshPersonnelData()}
+            onClick={() => refreshPersonnelData(true)}
             disabled={loading}
             style={{
               display: 'flex',
