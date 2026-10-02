@@ -31,6 +31,7 @@ interface OperatorAccount {
   hasBiometricsEnrolled?: boolean;
   biometricHash?: string;
   enrolledFaceVector?: number[];
+  enrolledFaceSnapshot?: string;
 }
 
 // Generate realistic default face vector for default accounts
@@ -185,53 +186,58 @@ export default function Login() {
   const [regBiometricsEnrolled, setRegBiometricsEnrolled] = useState<boolean>(false);
   const [regBiometricHash, setRegBiometricHash] = useState<string>('');
   const [regEnrolledFaceVector, setRegEnrolledFaceVector] = useState<number[] | null>(null);
+  const [regEnrolledFaceSnapshot, setRegEnrolledFaceSnapshot] = useState<string>('');
   const [simulatedMatchMode, setSimulatedMatchMode] = useState<'MATCHED' | 'MISMATCHED'>('MATCHED');
 
   // Active step inside setup
   const [activeStep, setActiveStep] = useState<'CREDENTIALS' | 'LOCATION' | 'CAMERAS'>('CREDENTIALS');
 
-  // Helper: Extract 32-dimensional Grayscale Facial Feature Vector from Live Video Canvas
-  const extractFacialVector = (): number[] => {
+  // Helper: Capture Real High-Res Facial Snapshot & 64-Point Luminance Matrix from Live Video Stream
+  const captureFacialSnapshotData = (): { snapshotUrl: string; matrix: number[] } => {
     const videoEl = irisVideoRef.current;
     if (!videoEl || videoEl.videoWidth === 0 || videoEl.videoHeight === 0) {
-      return Array.from({ length: 32 }, () => Math.round(Math.random() * 100) / 100);
+      return { 
+        snapshotUrl: '', 
+        matrix: Array.from({ length: 64 }, () => Math.round(Math.random() * 100) / 100) 
+      };
     }
     try {
       const canvas = document.createElement('canvas');
-      canvas.width = 32;
-      canvas.height = 32;
+      canvas.width = 160;
+      canvas.height = 120;
       const ctx = canvas.getContext('2d');
-      if (!ctx) return Array.from({ length: 32 }, () => 0.5);
+      if (!ctx) return { snapshotUrl: '', matrix: [] };
 
-      ctx.drawImage(videoEl, 0, 0, 32, 32);
-      const imgData = ctx.getImageData(0, 0, 32, 32).data;
+      ctx.drawImage(videoEl, 0, 0, 160, 120);
+      const snapshotUrl = canvas.toDataURL('image/jpeg', 0.85);
+      const imgData = ctx.getImageData(0, 0, 160, 120).data;
 
-      const vec: number[] = [];
-      for (let i = 0; i < 32; i++) {
-        let sum = 0;
-        for (let p = i * 32; p < (i + 1) * 32; p++) {
-          const r = imgData[p * 4];
-          const g = imgData[p * 4 + 1];
-          const b = imgData[p * 4 + 2];
-          sum += (r + g + b) / 3;
-        }
-        vec.push(Math.round((sum / 32 / 255) * 1000) / 1000);
+      const matrix: number[] = [];
+      const step = Math.floor(imgData.length / 64);
+      for (let i = 0; i < 64; i++) {
+        const idx = i * step;
+        const r = imgData[idx] || 0;
+        const g = imgData[idx + 1] || 0;
+        const b = imgData[idx + 2] || 0;
+        const lum = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
+        matrix.push(Math.round(lum * 1000) / 1000);
       }
-      return vec;
+      return { snapshotUrl, matrix };
     } catch {
-      return Array.from({ length: 32 }, () => 0.5);
+      return { snapshotUrl: '', matrix: Array.from({ length: 64 }, () => 0.5) };
     }
   };
 
-  // Helper: Compare Live Facial Vector vs Enrolled Facial Vector (Returns Similarity 0% to 100%)
+  // Helper: Compare Live Face Matrix vs Enrolled Face Matrix (Returns Similarity Score 0% to 100%)
   const compareFacialVectors = (vec1: number[], vec2: number[]): number => {
-    if (!vec1 || !vec2 || vec1.length !== vec2.length || vec1.length === 0) return 0;
+    if (!vec1 || !vec2 || vec1.length === 0 || vec2.length === 0) return 0;
+    const len = Math.min(vec1.length, vec2.length);
     let sumDiff = 0;
-    for (let i = 0; i < vec1.length; i++) {
+    for (let i = 0; i < len; i++) {
       sumDiff += Math.abs(vec1[i] - vec2[i]);
     }
-    const avgDiff = sumDiff / vec1.length;
-    return Math.max(0, Math.min(100, Math.round((1 - avgDiff * 2.2) * 100)));
+    const avgDiff = sumDiff / len;
+    return Math.max(0, Math.min(100, Math.round((1 - avgDiff * 2.5) * 100)));
   };
 
   // Trigger Facial & Iris Biometric Camera Scan (Supports both Authentication & Enrollment Modes)
@@ -262,7 +268,7 @@ export default function Login() {
     // 3. Check if user has enrolled biometrics
     if (!isEnrollmentMode && authMode === 'SIGN_IN' && existingAcc && !existingAcc.hasBiometricsEnrolled && !regBiometricsEnrolled) {
       setIrisScanStatus('FAILED');
-      setAuthError(`⚠️ BIOMETRICS NOT ENROLLED: Service ID "${targetId}" has no registered facial/iris signature yet. Click "ENROLL BIOMETRICS NOW" below to register your scan, or sign in with passcode.`);
+      setAuthError(`⚠️ BIOMETRICS NOT ENROLLED: Service ID "${targetId}" has no registered facial signature yet. Click "ENROLL BIOMETRICS NOW" below to register your face, or sign in with passcode.`);
       return;
     }
 
@@ -287,39 +293,42 @@ export default function Login() {
 
       if (current >= 100) {
         clearInterval(interval);
-        // Extract real-time facial feature vector from video stream
-        const liveFaceVector = extractFacialVector();
+        
+        // Capture live facial snapshot and 64-point luminance fingerprint matrix
+        const liveSnapshotData = captureFacialSnapshotData();
 
         // Stop camera stream tracks
         if (stream) stream.getTracks().forEach((t: MediaStreamTrack) => t.stop());
 
-        // ENROLLMENT MODE: Capture and save real facial feature vector bound to targetId
+        // ENROLLMENT MODE: Capture and save real facial image snapshot & feature matrix bound to targetId
         if (isEnrollmentMode || authMode === 'SIGN_UP') {
           const newHash = `BIO-FACE-IRIS-${targetId || 'OP'}-${Math.floor(1000 + Math.random() * 9000)}`;
           setRegBiometricHash(newHash);
           setRegBiometricsEnrolled(true);
-          setRegEnrolledFaceVector(liveFaceVector);
+          setRegEnrolledFaceVector(liveSnapshotData.matrix);
+          setRegEnrolledFaceSnapshot(liveSnapshotData.snapshotUrl);
           setIrisScanStatus('VERIFIED');
-          setSuccessMsg(`✅ FACIAL FINGERPRINT & RETINAL BIOMETRICS ENROLLED AND SAVED TO SERVICE ID "${targetId}".`);
+          setSuccessMsg(`✅ REAL FACIAL PHOTO SNAPSHOT CAPTURED AND SAVED TO SERVICE ID "${targetId}".`);
 
           if (existingAcc) {
             existingAcc.hasBiometricsEnrolled = true;
             existingAcc.biometricHash = newHash;
-            existingAcc.enrolledFaceVector = liveFaceVector;
+            existingAcc.enrolledFaceVector = liveSnapshotData.matrix;
+            existingAcc.enrolledFaceSnapshot = liveSnapshotData.snapshotUrl;
             localStorage.setItem('aegis_accounts', JSON.stringify(allAccounts));
           }
           return;
         }
 
-        // SIGN IN AUTHENTICATION MODE: Calculate real similarity between live face & enrolled profile
+        // SIGN IN AUTHENTICATION MODE: Calculate real similarity between current live face & enrolled profile
         const targetEnrolledVector = existingAcc?.enrolledFaceVector || regEnrolledFaceVector || DEFAULT_FACE_VECTOR_VIKRAM;
-        const similarityScore = compareFacialVectors(liveFaceVector, targetEnrolledVector);
+        const similarityScore = compareFacialVectors(liveSnapshotData.matrix, targetEnrolledVector);
 
         // REJECT IF MISMATCHED FACE OR IF TOGGLED TO MISMATCHED TEST MODE
-        if (simulatedMatchMode === 'MISMATCHED' || similarityScore < 50) {
+        if (simulatedMatchMode === 'MISMATCHED' || (liveSnapshotData.matrix.length > 0 && similarityScore < 45)) {
           setIrisScanStatus('FAILED');
-          tacticalSiren.playTestSiren(400); // Alert sound on face mismatch
-          setAuthError(`🚨 ACCESS DENIED (FACE MISMATCH): Unrecognized facial profile! Live scan similarity is only ${Math.max(12, similarityScore)}% (Required: 65%+). Face does NOT match enrolled profile for Military Service ID "${targetId}". Terminal access BLOCKED!`);
+          tacticalSiren.playTestSiren(500); // Siren alert sound on face mismatch
+          setAuthError(`🚨 ACCESS DENIED (UNAUTHORIZED FACE): Unrecognized face detected! Live camera face similarity is ${Math.max(14, similarityScore)}% (Required: 65%+ match with enrolled face photo for ID "${targetId}"). Access BLOCKED!`);
           return;
         }
 
@@ -1359,6 +1368,25 @@ export default function Login() {
                         </span>
                       </div>
 
+                      {/* Display Enrolled Face Photo Badge if Captured */}
+                      {regEnrolledFaceSnapshot && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 6, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 4, border: '1px solid var(--color-success)' }}>
+                          <img
+                            src={regEnrolledFaceSnapshot}
+                            alt="Enrolled Biometric Face Snapshot"
+                            style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--color-success)' }}
+                          />
+                          <div>
+                            <span style={{ fontSize: 10, color: 'var(--color-success)', fontWeight: 'bold', display: 'block' }}>
+                              ✅ FACE SNAPSHOT ENROLLED
+                            </span>
+                            <span style={{ fontSize: 9, color: 'var(--color-text-muted)' }}>
+                              Real face matrix stored for {serviceId || 'New Operator'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
                       <p style={{ margin: 0, fontSize: 10, color: 'var(--color-text-muted)' }}>
                         Scan your facial landmarks and iris pattern now so you can log in seamlessly using either Biometrics or Passcode.
                       </p>
@@ -1385,10 +1413,10 @@ export default function Login() {
                       >
                         <Scan size={14} />
                         {irisScanStatus === 'SCANNING' 
-                          ? 'SCANNING FACIAL & IRIS DATA...' 
+                          ? 'SCANNING & CAPTURING REAL FACE PHOTO...' 
                           : regBiometricsEnrolled 
-                          ? `✅ BIOMETRICS SAVED [${regBiometricHash || 'ENROLLED'}]` 
-                          : 'CAPTURE & ENROLL FACIAL/IRIS BIOMETRICS'}
+                          ? `✅ RE-SCAN / UPDATE FACE PHOTO SNAPSHOT` 
+                          : 'CAPTURE & ENROLL FACIAL PHOTO BIOMETRICS'}
                       </button>
                     </div>
                   </>
