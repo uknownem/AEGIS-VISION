@@ -144,67 +144,67 @@ class VoiceAssistantService {
     // 1. DEFCON Commands
     if (text.includes('defcon 1') || text.includes('maximum combat')) {
       if (this.defconCallback) this.defconCallback('DEFCON 1');
-      matchedResponse = 'Affirmative Commander. DEFCON 1 Maximum Combat Readiness engaged.';
+      matchedResponse = "DEFCON 1 engaged! Coffee's poured, lasers are primed, let's keep the base 100% secure, Commander!";
     } else if (text.includes('defcon 2') || text.includes('high readiness')) {
       if (this.defconCallback) this.defconCallback('DEFCON 2');
-      matchedResponse = 'Affirmative. DEFCON 2 High Readiness state active.';
+      matchedResponse = 'DEFCON 2 activated! Eyes sharp and tea ready, standing on high alert!';
     } else if (text.includes('defcon 3') || text.includes('elevated guard')) {
       if (this.defconCallback) this.defconCallback('DEFCON 3');
-      matchedResponse = 'DEFCON 3 Elevated Guard posture engaged.';
+      matchedResponse = 'DEFCON 3 set! Keeping an extra eye on the perimeter sensors.';
     } else if (text.includes('defcon 4') || text.includes('normal watch')) {
       if (this.defconCallback) this.defconCallback('DEFCON 4');
-      matchedResponse = 'DEFCON 4 Normal Patrol Watch set.';
+      matchedResponse = 'DEFCON 4 engaged. All smooth on routine patrol watch, Commander!';
     } else if (text.includes('defcon 5') || text.includes('peace') || text.includes('low threat')) {
       if (this.defconCallback) this.defconCallback('DEFCON 5');
-      matchedResponse = 'DEFCON 5 Standard Peace State active.';
+      matchedResponse = 'DEFCON 5 active! Peaceful skies and clear horizons today!';
     }
     
     // 2. Siren & Alarm Commands
     else if (text.includes('silence siren') || text.includes('stop siren') || text.includes('mute alarm') || text.includes('silence alarm')) {
       tacticalSiren.stop();
-      matchedResponse = 'Affirmative. Tactical siren silenced. Standing by.';
+      matchedResponse = 'Ah, sweet silence restored! Siren muted, Commander.';
     } else if (text.includes('test siren') || text.includes('test alarm') || text.includes('trigger siren')) {
       tacticalSiren.playTestSiren(2000);
-      matchedResponse = 'Executing 2-second tactical siren audio test.';
+      matchedResponse = "Testing the siren sound! Hold onto your ears, it's a loud one!";
     }
 
     // 3. Vision Mode Optics Commands
     else if (text.includes('thermal') || text.includes('flir')) {
       if (this.filterCallback) this.filterCallback('flir');
-      matchedResponse = 'FLIR thermal high-resolution imaging engaged.';
+      matchedResponse = 'Thermal vision ON! Ooh, looking nice and cozy in heat-vision mode!';
     } else if (text.includes('night vision') || text.includes('nvg')) {
       if (this.filterCallback) this.filterCallback('nvg');
-      matchedResponse = 'Night vision optics activated.';
+      matchedResponse = 'Bravo Six, going dark! Night vision optics activated!';
     } else if (text.includes('normal mode') || text.includes('standard feed') || text.includes('normal optical')) {
       if (this.filterCallback) this.filterCallback('normal');
-      matchedResponse = 'Standard optical RGB feed restored.';
+      matchedResponse = 'Back to crisp, clear standard optical feed!';
     }
 
     // 4. Camera Navigation Commands
     else if (text.includes('camera 1') || text.includes('cam 1') || text.includes('himalayan')) {
       if (this.navigationCallback) this.navigationCallback('/dashboard/camera/CAM-01');
-      matchedResponse = 'Navigating to Camera 01 (LAC Northern Sector).';
+      matchedResponse = 'Switching to Camera 01! Himalayan ridge breeze included for free.';
     } else if (text.includes('camera 2') || text.includes('cam 2') || text.includes('main gate')) {
       if (this.navigationCallback) this.navigationCallback('/dashboard/camera/CAM-02');
-      matchedResponse = 'Navigating to Camera 02 (Northern Main Gate).';
+      matchedResponse = 'Opening Camera 02 at the Main Gate! Keeping guard on the main entry.';
     } else if (text.includes('camera 3') || text.includes('cam 3') || text.includes('armory')) {
       if (this.navigationCallback) this.navigationCallback('/dashboard/camera/CAM-03');
-      matchedResponse = 'Navigating to Camera 03 (Thermal Overwatch Mast).';
+      matchedResponse = 'Switching to Camera 03 at the Thermal Overwatch Mast!';
     } else if (text.includes('camera 4') || text.includes('cam 4') || text.includes('drone') || text.includes('uav')) {
       if (this.navigationCallback) this.navigationCallback('/dashboard/camera/CAM-04');
-      matchedResponse = 'Navigating to Camera 04 (UAV Aerial Recon).';
+      matchedResponse = 'UAV aerial drone view coming right up! Keep your eyes on the skies!';
     } else if (text.includes('show overview') || text.includes('open dashboard') || text.includes('go to overview')) {
       if (this.navigationCallback) this.navigationCallback('/dashboard');
-      matchedResponse = 'Opening Main Defense Overview dashboard.';
+      matchedResponse = 'Bringing up the main tactical overview map!';
     } else if (text.includes('show analytics') || text.includes('open analytics')) {
       if (this.navigationCallback) this.navigationCallback('/dashboard/analytics');
-      matchedResponse = 'Opening System Recon Analytics.';
+      matchedResponse = 'Analytics loaded! Let’s crunch those threat numbers!';
     } else if (text.includes('show status') || text.includes('system status')) {
       if (this.navigationCallback) this.navigationCallback('/dashboard/status');
-      matchedResponse = 'Opening Hardware System Telemetry.';
+      matchedResponse = 'Checking system status! All servers and sensors reporting in!';
     } else if (text.includes('pair wifi') || text.includes('add camera') || text.includes('pair phone')) {
       if (this.addCamModalCallback) this.addCamModalCallback();
-      matchedResponse = 'Opening WiFi camera pairing wizard.';
+      matchedResponse = 'Opening the camera pairing wizard! Let’s get that phone camera hooked up!';
     }
 
     // 5. Alert & Report Commands
@@ -213,29 +213,29 @@ class VoiceAssistantService {
       const active = alerts.find(a => a.status === 'ACTIVE');
       if (active) {
         alertSync.updateAlertStatus(active.id, 'ACKNOWLEDGED');
-        matchedResponse = `Alert ${active.id} acknowledged by Duty Commander.`;
+        matchedResponse = `Got it! Threat #${active.id} acknowledged. I'll make sure nobody sneaks past us!`;
       } else {
-        matchedResponse = 'No active unacknowledged threats found.';
+        matchedResponse = 'All clear! No unacknowledged threats waiting right now.';
       }
     } else if (text.includes('resolve alert') || text.includes('clear threat')) {
       const alerts = alertSync.getAlerts();
       const active = alerts.find(a => a.status === 'ACTIVE' || a.status === 'ACKNOWLEDGED');
       if (active) {
         alertSync.updateAlertStatus(active.id, 'RESOLVED');
-        matchedResponse = `Threat ${active.id} resolved and cleared.`;
+        matchedResponse = `Threat #${active.id} resolved! Excellent work, Commander. Danger neutralised!`;
       } else {
-        matchedResponse = 'All sector threats cleared.';
+        matchedResponse = 'All sector threats are already clear! Great job!';
       }
     } else if (text.includes('generate report') || text.includes('print report') || text.includes('incident report')) {
       if (this.reportModalCallback) this.reportModalCallback();
-      matchedResponse = 'Generating Top Secret Incident Audit Report.';
+      matchedResponse = 'Crafting your Top Secret incident report right away. Looking sharp as always!';
     }
 
     // 6. Status & Duty Queries
     else if (text.includes('report status') || text.includes('check status')) {
       const alerts = alertSync.getAlerts();
       const activeCount = alerts.filter(a => a.status === 'ACTIVE').length;
-      matchedResponse = `AEGIS Grid Operational. ${activeCount} active threat incursions logged.`;
+      matchedResponse = `AEGIS grid is running super smooth! ${activeCount} active threats on watch right now!`;
     } else if (text.includes('who is on duty') || text.includes('check personnel')) {
       let opName = 'Subedar Vikram Singh';
       try {
@@ -245,12 +245,12 @@ class VoiceAssistantService {
           if (p.operatorName) opName = `${p.rank || ''} ${p.operatorName}`;
         }
       } catch {}
-      matchedResponse = `Duty Commander ${opName} active at Sector Command.`;
+      matchedResponse = `Commander ${opName} is at the helm today! You're in great hands!`;
     }
 
-    // STRICT UNRECOGNIZED COMMAND FALLBACK
+    // STRICT UNRECOGNIZED COMMAND FALLBACK WITH WITTY BANTER
     else {
-      matchedResponse = 'Negative Commander. Unrecognized tactical command. Please consult the command cheatsheet.';
+      matchedResponse = "Oops, I didn't quite catch that one, Commander! Try asking according to the command cheatsheet!";
     }
 
     // Speak and notify UI
