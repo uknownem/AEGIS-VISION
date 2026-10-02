@@ -80,11 +80,13 @@ export default function CameraMonitoring() {
   const hasUnusualThreat = unusualThreats.length > 0;
   const latestThreat = unusualThreats[0];
 
-  // Analysis & Siren Delay Controller:
-  // Analyzes surroundings first for 2.5s before activating siren alarm!
+  // Analysis, Siren Delay & Alert Rate-Limiting Controller:
+  // 1. Analyzes surroundings first for 2.5s before siren activation.
+  // 2. Throttles alert saves: Sends max 1 alert per 60 seconds (1 minute cooldown) while viewing camera.
+  // 3. Identifies and describes harmful/prohibited objects (mobiles, spoons, weapons, un-uniformed humans).
   const [analyzingSurroundings, setAnalyzingSurroundings] = useState(false);
   const threatStartTimeRef = useRef<number>(0);
-  const savedWebcamIncursionIdsRef = useRef<Set<string>>(new Set());
+  const lastAlertBroadcastTimeRef = useRef<number>(0);
 
   useEffect(() => {
     if (hasUnusualThreat) {
@@ -98,27 +100,45 @@ export default function CameraMonitoring() {
           setAnalyzingSurroundings(false);
           setActiveSirenAlert(true);
 
-          // ONLY SAVE INCURSION FOR LOCAL WEBCAM STREAM!
-          if (streamSource === 'webcam' && latestThreat) {
-            const incursionKey = `${latestThreat.class_name}_${Math.floor(Date.now() / 10000)}`;
-            if (!savedWebcamIncursionIdsRef.current.has(incursionKey)) {
-              savedWebcamIncursionIdsRef.current.add(incursionKey);
-              
-              alertSync.broadcastNewAlert({
-                alert_type: 'NON_HUMAN_INTRUSION',
-                incursion_category: latestThreat.threat_type || 'WEBCAM SURROUNDINGS ANOMALY',
-                object_category: latestThreat.is_non_human ? 'ELECTRONIC_GADGET' : 'UNAUTHORIZED_HUMAN',
-                target_class: latestThreat.class_name || 'Unusual Object / Phone / Spoon / Disguise',
-                threat_level: 'HIGH',
-                confidence: latestThreat.confidence || 0.95,
-                camera_id: 'LOCAL-WEBCAM',
-                sector: 'Local Command Desk (Webcam Feed)',
-                siren_triggered: 1,
-                status: 'ACTIVE',
-                distance_meters: latestThreat.distance_meters || 0.8,
-                notes: `Surroundings analyzed on local webcam feed. Threat detected: ${latestThreat.class_name}`
-              });
+          // RATE LIMIT ALERT BROADCASTS: Only send 1 alert per 60 seconds (1 minute cooldown) per camera session!
+          const nowMs = Date.now();
+          const timeSinceLastAlert = nowMs - lastAlertBroadcastTimeRef.current;
+
+          if (timeSinceLastAlert >= 60000 && streamSource === 'webcam' && latestThreat) {
+            lastAlertBroadcastTimeRef.current = nowMs;
+
+            // Identify object and classify harmful/prohibited threat nature
+            const threatLabel = (latestThreat.class_name || '').toUpperCase();
+            let objectCat: any = 'METALLIC_TOOL';
+            let alertType: any = 'NON_HUMAN_INTRUSION';
+            let harmfulDetail = `Harmful/prohibited item detected: ${threatLabel}`;
+
+            if (threatLabel.includes('PHONE') || threatLabel.includes('GADGET') || threatLabel.includes('ELECTRONIC') || threatLabel.includes('MOBILE')) {
+              objectCat = 'ELECTRONIC_GADGET';
+              harmfulDetail = `🚨 HARMFUL ELECTRONIC DEVICE DETECTED: Unauthorized mobile phone / electronic gadget in secure perimeter. Potential intelligence leak risk.`;
+            } else if (threatLabel.includes('SPOON') || threatLabel.includes('UTENSIL') || threatLabel.includes('TOOL') || threatLabel.includes('KNIFE') || threatLabel.includes('SCISSORS')) {
+              objectCat = 'METALLIC_TOOL';
+              harmfulDetail = `🚨 HARMFUL METALLIC OBJECT DETECTED: Prohibited metallic utensil / weapon / tool (${threatLabel}) detected in restricted sector.`;
+            } else if (threatLabel.includes('WITHOUT') || threatLabel.includes('UNIFORM') || threatLabel.includes('CAMOUFLAGE') || threatLabel.includes('DISGUISE')) {
+              objectCat = 'UNAUTHORIZED_HUMAN';
+              alertType = 'PERIMETER_SENTRY_BREACH';
+              harmfulDetail = `🚨 HARMFUL PERSONNEL INTRUSION: Unauthorized person detected without military uniform / in camouflage disguise. Security clearance unverified.`;
             }
+
+            alertSync.broadcastNewAlert({
+              alert_type: alertType,
+              incursion_category: latestThreat.threat_type || 'HARMFUL OBJECT / SURROUNDINGS BREACH',
+              object_category: objectCat,
+              target_class: `HARMFUL: ${threatLabel}`,
+              threat_level: 'HIGH',
+              confidence: latestThreat.confidence || 0.95,
+              camera_id: 'LOCAL-WEBCAM',
+              sector: 'Local Command Desk (Webcam Feed)',
+              siren_triggered: 1,
+              status: 'ACTIVE',
+              distance_meters: latestThreat.distance_meters || 0.8,
+              notes: `${harmfulDetail} [Rate-limited: 1 alert per 60s span]`
+            });
           }
         }
       }
