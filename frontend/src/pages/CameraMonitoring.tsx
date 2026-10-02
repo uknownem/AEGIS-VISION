@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, Maximize2, AlertTriangle, ShieldCheck, X, Camera, 
-  Eye, VolumeX, ZoomIn, ZoomOut, Siren
+  Eye, VolumeX, ZoomIn, ZoomOut, Siren, Wifi
 } from 'lucide-react';
 import { tacticalSiren } from '../utils/siren';
 import { visionDetector } from '../utils/visionDetector';
@@ -11,7 +11,7 @@ import { API_BASE_URL, WS_BASE_URL } from '../config';
 
 import { cameraManager } from '../utils/cameraManager';
 
-type StreamSource = 'backend' | 'webcam' | 'simulated';
+type StreamSource = 'backend' | 'webcam' | 'simulated' | 'ip_wifi';
 type VisionMode = 'normal' | 'thermal' | 'nvg' | 'flir';
 
 export default function CameraMonitoring() {
@@ -20,8 +20,31 @@ export default function CameraMonitoring() {
   const allCameras = cameraManager.getCameras();
   const camera = allCameras.find(c => c.id === id) || allCameras[0];
   
-  // Default to High-Definition Tactical Reconnaissance simulation feed
-  const [streamSource, setStreamSource] = useState<StreamSource>('simulated');
+  // Default stream source (Auto-detect if external IP/WiFi camera)
+  const [streamSource, setStreamSource] = useState<StreamSource>(() => {
+    if (camera.ipAddress || camera.rtspUrl || camera.streamType === 'ip_wifi' || camera.streamType === 'rtsp') {
+      return 'ip_wifi';
+    }
+    return 'simulated';
+  });
+
+  // IP WiFi Stream URL state
+  const [ipStreamUrl, setIpStreamUrl] = useState<string>(() => {
+    if (camera.rtspUrl) return camera.rtspUrl;
+    if (camera.ipAddress) return `http://${camera.ipAddress}:${camera.port || '8080'}/video`;
+    return 'http://192.168.1.105:8080/video';
+  });
+  const [ipImageError, setIpImageError] = useState<boolean>(false);
+  const ipVideoImgRef = useRef<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    if (camera.ipAddress || camera.rtspUrl || camera.streamType === 'ip_wifi' || camera.streamType === 'rtsp') {
+      setStreamSource('ip_wifi');
+      const url = camera.rtspUrl || (camera.ipAddress ? `http://${camera.ipAddress}:${camera.port || '8080'}/video` : 'http://192.168.1.105:8080/video');
+      setIpStreamUrl(url);
+      setIpImageError(false);
+    }
+  }, [camera.id]);
 
   const [visionMode, setVisionMode] = useState<VisionMode>('normal');
   const [isFullScreen, setIsFullScreen] = useState(false);
@@ -254,9 +277,9 @@ export default function CameraMonitoring() {
     };
   }, [streamSource]);
 
-  // 2b. In-Browser Real-Time AI Object Detection on Local Webcam (TensorFlow COCO-SSD + Optical Engine)
+  // 2b. In-Browser Real-Time AI Object Detection on Local Webcam & IP WiFi Camera Feeds
   useEffect(() => {
-    if (streamSource !== 'webcam') return;
+    if (streamSource !== 'webcam' && streamSource !== 'ip_wifi') return;
 
     let isRunning = true;
     let animId: number;
@@ -275,20 +298,26 @@ export default function CameraMonitoring() {
       const runDetection = async () => {
         if (!isRunning) return;
 
-        const video = videoRef.current;
+        const targetElement: any = streamSource === 'webcam' ? videoRef.current : ipVideoImgRef.current;
         const canvas = webcamCanvasRef.current;
 
-        if (video && canvas && video.readyState >= 2 && video.videoWidth > 0) {
-          if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+        const isVideo = targetElement instanceof HTMLVideoElement;
+        const isReady = targetElement && (isVideo ? (targetElement.readyState >= 2 && targetElement.videoWidth > 0) : (targetElement.complete && targetElement.naturalWidth > 0));
+
+        if (isReady && canvas) {
+          const targetWidth = isVideo ? targetElement.videoWidth : targetElement.naturalWidth;
+          const targetHeight = isVideo ? targetElement.videoHeight : targetElement.naturalHeight;
+
+          if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
           }
 
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            const detectedItems = await visionDetector.detect(video);
+            const detectedItems = await visionDetector.detect(targetElement);
 
             if (detectedItems && detectedItems.length > 0) {
               detectedItems.forEach(pred => {
@@ -571,6 +600,26 @@ export default function CameraMonitoring() {
           </button>
 
           <button 
+            onClick={() => { setStreamSource('ip_wifi'); setIpImageError(false); }}
+            style={{
+              padding: '6px 12px',
+              fontSize: 11,
+              fontFamily: "'Share Tech Mono', monospace",
+              borderRadius: 3,
+              backgroundColor: streamSource === 'ip_wifi' ? 'var(--color-accent)' : 'var(--color-surface)',
+              color: streamSource === 'ip_wifi' ? '#000' : 'var(--color-text)',
+              border: '1px solid var(--color-border)',
+              cursor: 'pointer',
+              fontWeight: streamSource === 'ip_wifi' ? 'bold' : 'normal',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
+            }}
+          >
+            <Wifi size={13} /> PHONE / IP WIFI CAM
+          </button>
+
+          <button 
             onClick={() => setStreamSource('webcam')}
             style={{
               padding: '6px 12px',
@@ -613,7 +662,7 @@ export default function CameraMonitoring() {
               // Unlock web audio context
               tacticalSiren.initContext();
               setSimulatedThreatActive(prev => !prev);
-              if (streamSource === 'webcam') {
+              if (streamSource === 'webcam' || streamSource === 'ip_wifi') {
                 // Temporarily inject a non-human test object to demonstrate siren & red bounding box
                 setActiveSirenAlert(true);
                 setTimeout(() => setActiveSirenAlert(false), 4000);
@@ -641,6 +690,59 @@ export default function CameraMonitoring() {
           </button>
         </div>
       </div>
+
+      {/* IP Stream URL Input Bar when streamSource === 'ip_wifi' */}
+      {streamSource === 'ip_wifi' && (
+        <div style={{
+          marginBottom: 12,
+          padding: '8px 14px',
+          backgroundColor: 'var(--color-surface)',
+          border: '1px solid var(--color-accent)',
+          borderRadius: 4,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          fontSize: 12,
+          fontFamily: "'Share Tech Mono', monospace"
+        }}>
+          <Wifi size={16} color="var(--color-accent)" />
+          <span style={{ color: 'var(--color-accent)', fontWeight: 'bold' }}>PHONE / IP STREAM URL:</span>
+          <input
+            type="text"
+            value={ipStreamUrl}
+            onChange={(e) => {
+              setIpStreamUrl(e.target.value);
+              setIpImageError(false);
+            }}
+            placeholder="http://192.168.1.105:8080/video"
+            style={{
+              flex: 1,
+              padding: '4px 10px',
+              fontSize: 12,
+              fontFamily: "'Share Tech Mono', monospace",
+              backgroundColor: '#000',
+              color: '#fff',
+              border: '1px solid var(--color-border)',
+              borderRadius: 3
+            }}
+          />
+          <button
+            onClick={() => setIpImageError(false)}
+            style={{
+              padding: '4px 10px',
+              backgroundColor: 'var(--color-accent)',
+              color: '#000',
+              border: 'none',
+              borderRadius: 3,
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              fontSize: 11
+            }}
+          >
+            CONNECT FEED
+          </button>
+        </div>
+      )}
 
       {/* Main Monitoring Grid */}
       <div style={{ display: 'flex', gap: 20, height: 'calc(100vh - 170px)' }}>
@@ -748,6 +850,77 @@ export default function CameraMonitoring() {
                 >
                   RETRY
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* 1b. External Phone / IP WiFi Camera Feed with Real-Time AI Detection Overlay */}
+          {streamSource === 'ip_wifi' && (
+            <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#020402', overflow: 'hidden' }}>
+              {!ipImageError ? (
+                <img 
+                  ref={ipVideoImgRef}
+                  src={ipStreamUrl} 
+                  alt="External Phone / IP WiFi Stream"
+                  crossOrigin="anonymous"
+                  onError={() => setIpImageError(true)}
+                  style={{ 
+                    width: '100%', 
+                    height: '100%', 
+                    objectFit: 'contain',
+                    transform: `scale(${zoomLevel})`,
+                    ...getVisionFilterStyle()
+                  }} 
+                />
+              ) : (
+                <div style={{ padding: 24, textAlign: 'center', maxWidth: 520, fontFamily: "'Share Tech Mono', monospace" }}>
+                  <Wifi size={44} color="var(--color-warning)" style={{ marginBottom: 12 }} />
+                  <h4 style={{ color: 'var(--color-warning)', marginBottom: 8, fontSize: 15 }}>PHONE / IP CAMERA CONNECTING...</h4>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.6, marginBottom: 14 }}>
+                    Attempting live connection to: <code style={{ color: 'var(--color-accent)' }}>{ipStreamUrl}</code><br/>
+                    Ensure your phone's <strong>IP Webcam</strong> app is started and phone & laptop are connected to the same WiFi network.
+                  </p>
+
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <button
+                      onClick={() => {
+                        const newUrl = ipStreamUrl.includes('/video_feed') ? ipStreamUrl.replace('/video_feed', '/video') : ipStreamUrl.replace('/video', '/video_feed');
+                        setIpStreamUrl(newUrl);
+                        setIpImageError(false);
+                      }}
+                      style={{ padding: '6px 12px', fontSize: 11, backgroundColor: 'var(--color-surface)', color: '#fff', border: '1px solid var(--color-border)', borderRadius: 4, cursor: 'pointer' }}
+                    >
+                      🔄 SWITCH ENDPOINT (/video ↔ /video_feed)
+                    </button>
+                    <button
+                      onClick={() => setStreamSource('webcam')}
+                      style={{ padding: '6px 12px', fontSize: 11, backgroundColor: 'var(--color-accent)', color: '#000', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer' }}
+                    >
+                      📷 USE LAPTOP WEBCAM
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <canvas
+                ref={webcamCanvasRef}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  pointerEvents: 'none',
+                  transform: `scale(${zoomLevel})`,
+                  zIndex: 5
+                }}
+              />
+
+              {/* Tactical Status Pill for IP Camera AI Detector */}
+              <div style={{ position: 'absolute', bottom: 12, left: 16, backgroundColor: 'rgba(0,0,0,0.85)', border: '1px solid var(--color-accent)', padding: '5px 12px', borderRadius: 4, color: 'var(--color-accent)', fontSize: 11, fontFamily: "'Share Tech Mono', monospace", zIndex: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="status-dot live" style={{ margin: 0 }}></span>
+                PHONE / IP AI VISION: <strong>{aiModelStatus}</strong>
+                {detections.length > 0 && <span style={{ color: hasNonHumanThreat ? 'var(--color-alert)' : 'var(--color-success)', fontWeight: 'bold' }}>({detections.length} TARGETS DETECTED)</span>}
               </div>
             </div>
           )}
